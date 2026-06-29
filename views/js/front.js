@@ -1,3 +1,13 @@
+/**
+ * 2009-2026 Tecnoacquisti.com
+ *
+ * Front-office captcha rendering and spam protection helpers.
+ *
+ * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
+ * @copyright 2009-2026 Arte e Informatica
+ * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+ */
+
 (function () {
     'use strict';
 

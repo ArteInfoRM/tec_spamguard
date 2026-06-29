@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *

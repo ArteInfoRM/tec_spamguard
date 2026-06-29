@@ -55,6 +55,18 @@ body.tec-spamguard-ps9-config-page h4.page-subtitle {
     margin-bottom: 0;
 }
 
+.tec-spamguard-captcha-test-result {
+    margin-left: 12px;
+}
+
+.tec-spamguard-captcha-test-success {
+    color: #16a34a;
+}
+
+.tec-spamguard-captcha-test-error {
+    color: #b91c1c;
+}
+
 body.tec-spamguard-ps9-config-page .tec-spamguard-config-header {
     padding-top: 15px;
 }

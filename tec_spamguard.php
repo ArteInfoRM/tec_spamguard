@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -9,13 +10,27 @@
  * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
  * @version   1.0.0
  */
+use TecSpamGuard\Captcha\AltchaProvider;
+use TecSpamGuard\Captcha\AltchaSentinelProvider;
+use TecSpamGuard\Captcha\CaptchaProviderInterface;
+use TecSpamGuard\Captcha\RecaptchaV2Provider;
+use TecSpamGuard\Captcha\RecaptchaV3Provider;
+use TecSpamGuard\Captcha\TurnstileProvider;
+use TecSpamGuard\Form\ContactForm;
+use TecSpamGuard\Form\FormInterface;
+use TecSpamGuard\Form\LoginForm;
+use TecSpamGuard\Form\PasswordForm;
+use TecSpamGuard\Form\RegisterForm;
+use TecSpamGuard\Validation\EmailValidator;
+use TecSpamGuard\Validation\MessageValidator;
+
 if (!defined('_PS_VERSION_')) {
     exit;
 }
 
 class Tec_spamguard extends Module
 {
-    const CONFIG_PREFIX = 'TEC_SPAMGUARD_';
+    public const CONFIG_PREFIX = 'TEC_SPAMGUARD_';
 
     /**
      * Module constructor.
@@ -76,6 +91,11 @@ class Tec_spamguard extends Module
      */
     public function getContent()
     {
+        if ((int) Tools::getValue('ajax') === 1
+            && Tools::getValue('action') === 'testCaptchaKeys') {
+            $this->ajaxTestCaptchaKeys();
+        }
+
         $this->context->controller->addCSS($this->_path . 'views/css/back.css');
 
         $output = '';
@@ -100,7 +120,7 @@ class Tec_spamguard extends Module
     /**
      * Load front-office assets for protected pages.
      *
-     * @param array $params Hook parameters.
+     * @param array $params Hook parameters
      *
      * @return string
      */
@@ -155,7 +175,7 @@ class Tec_spamguard extends Module
     /**
      * Validate submitted forms before their controllers handle the request.
      *
-     * @param array $params Hook parameters.
+     * @param array $params Hook parameters
      *
      * @return void
      */
@@ -195,7 +215,7 @@ class Tec_spamguard extends Module
     /**
      * Native account submit hook fallback.
      *
-     * @param array $params Hook parameters.
+     * @param array $params Hook parameters
      *
      * @return bool
      */
@@ -215,9 +235,145 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Test the configured captcha provider credentials via ajax.
+     *
+     * @return void
+     */
+    private function ajaxTestCaptchaKeys()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+
+        $providerId = (string) Tools::getValue('provider');
+        $siteKey = trim((string) Tools::getValue('sitekey'));
+        $secret = (string) Tools::getValue('secret');
+
+        if ($secret === '' || preg_match('/^\*{4,}.+$/', $secret)) {
+            $secret = $this->getCaptchaStoredSecretForProvider($providerId);
+        }
+        $secret = trim($secret);
+
+        if (!in_array($providerId, ['recaptcha_v2', 'recaptcha_v3', 'turnstile', 'altcha', 'altcha_sentinel'], true)) {
+            die(json_encode([
+                'success' => false,
+                'message' => $this->l('Select a captcha provider before testing.'),
+            ]));
+        }
+
+        if ($providerId !== 'altcha' && ($siteKey === '' || $secret === '')) {
+            die(json_encode([
+                'success' => false,
+                'message' => $this->l('Site key and secret key must both be set.'),
+            ]));
+        }
+
+        if ($providerId === 'altcha' && $secret === '') {
+            die(json_encode([
+                'success' => false,
+                'message' => $this->l('ALTCHA HMAC secret must be set.'),
+            ]));
+        }
+
+        $result = $this->validateCaptchaProviderKeys($providerId, $siteKey, $secret);
+
+        die(json_encode([
+            'success' => (bool) $result['success'],
+            'message' => (string) $result['message'],
+        ]));
+    }
+
+    /**
+     * Validate captcha provider credentials.
+     *
+     * @param string $providerId Provider identifier
+     * @param string $siteKey Public site key or challenge URL
+     * @param string $secret Secret credential
+     *
+     * @return array
+     */
+    private function validateCaptchaProviderKeys($providerId, $siteKey, $secret)
+    {
+        $provider = $this->createCaptchaProviderById($providerId, $siteKey, $secret);
+        if ($provider === null) {
+            return [
+                'success' => false,
+                'message' => $this->l('Select a captcha provider before testing the keys.'),
+            ];
+        }
+
+        $result = $provider->testKeys($siteKey, $secret);
+        if (empty($result['success'])) {
+            return [
+                'success' => false,
+                'message' => $this->l('Captcha key validation failed: ') . (string) $result['message'],
+            ];
+        }
+
+        return [
+            'success' => true,
+            'message' => (string) $result['message'],
+        ];
+    }
+
+    /**
+     * Create a captcha provider by identifier for back-office tests.
+     *
+     * @param string $providerId Provider identifier
+     * @param string $siteKey Public site key or challenge URL
+     * @param string $secret Secret credential
+     *
+     * @return CaptchaProviderInterface|null
+     */
+    private function createCaptchaProviderById($providerId, $siteKey = '', $secret = '')
+    {
+        switch ((string) $providerId) {
+            case 'recaptcha_v2':
+                return new RecaptchaV2Provider();
+            case 'recaptcha_v3':
+                return new RecaptchaV3Provider(
+                    (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
+                    (float) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_MIN_SCORE')
+                );
+            case 'turnstile':
+                return new TurnstileProvider();
+            case 'altcha':
+                return new AltchaProvider();
+            case 'altcha_sentinel':
+                return new AltchaSentinelProvider($siteKey, $secret);
+        }
+
+        return null;
+    }
+
+    /**
+     * Return the stored secret used for captcha provider tests.
+     *
+     * @param string $providerId Provider identifier
+     *
+     * @return string
+     */
+    private function getCaptchaStoredSecretForProvider($providerId)
+    {
+        switch ((string) $providerId) {
+            case 'recaptcha_v2':
+                return (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V2_SECRET');
+            case 'recaptcha_v3':
+                return (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_SECRET');
+            case 'turnstile':
+                return (string) Configuration::get(self::CONFIG_PREFIX . 'TURNSTILE_SECRET');
+            case 'altcha':
+                return (string) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_SECRET');
+            case 'altcha_sentinel':
+                return (string) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_API_KEY');
+        }
+
+        return '';
+    }
+
+    /**
      * Return configured captcha provider.
      *
-     * @return \TecSpamGuard\Captcha\CaptchaProviderInterface|null
+     * @return CaptchaProviderInterface|null
      */
     public function createCaptchaProvider()
     {
@@ -225,21 +381,21 @@ class Tec_spamguard extends Module
 
         switch ($provider) {
             case 'recaptcha_v2':
-                return new \TecSpamGuard\Captcha\RecaptchaV2Provider();
+                return new RecaptchaV2Provider();
             case 'recaptcha_v3':
-                return new \TecSpamGuard\Captcha\RecaptchaV3Provider(
+                return new RecaptchaV3Provider(
                     (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
                     (float) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_MIN_SCORE')
                 );
             case 'turnstile':
-                return new \TecSpamGuard\Captcha\TurnstileProvider();
+                return new TurnstileProvider();
             case 'altcha':
-                return new \TecSpamGuard\Captcha\AltchaProvider(
+                return new AltchaProvider(
                     (int) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_HIDE_FOOTER') === 1,
                     (int) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_HIDE_LOGO') === 1
                 );
             case 'altcha_sentinel':
-                return new \TecSpamGuard\Captcha\AltchaSentinelProvider(
+                return new AltchaSentinelProvider(
                     (string) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_URL'),
                     (string) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_API_KEY'),
                     (int) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_HIDE_FOOTER') === 1,
@@ -257,7 +413,7 @@ class Tec_spamguard extends Module
      */
     public function createAltchaChallenge()
     {
-        $provider = new \TecSpamGuard\Captcha\AltchaProvider();
+        $provider = new AltchaProvider();
 
         return $provider->createChallenge(
             (string) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_SECRET'),
@@ -402,6 +558,11 @@ class Tec_spamguard extends Module
             return $this->displayError($this->l('ALTCHA Sentinel URL must be a valid absolute URL.'));
         }
 
+        $tokenValidation = $this->validateCaptchaTextInputs($provider);
+        if ($tokenValidation !== '') {
+            return $this->displayError($tokenValidation);
+        }
+
         Configuration::updateValue(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER', $provider);
         foreach ($boolFields as $field) {
             Configuration::updateValue(self::CONFIG_PREFIX . $field, (int) Tools::getValue(self::CONFIG_PREFIX . $field));
@@ -427,9 +588,78 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Validate captcha configuration text inputs.
+     *
+     * @param string $provider Selected provider
+     *
+     * @return string Error message or empty string
+     */
+    private function validateCaptchaTextInputs($provider)
+    {
+        $simpleFields = [
+            'RECAPTCHA_V2_SITEKEY' => 512,
+            'RECAPTCHA_V3_SITEKEY' => 512,
+            'TURNSTILE_SITEKEY' => 512,
+        ];
+
+        foreach ($simpleFields as $field => $maxLength) {
+            $value = trim((string) Tools::getValue(self::CONFIG_PREFIX . $field));
+            if ($value !== '' && !$this->isSafeCredential($value, $maxLength)) {
+                return $this->l('Captcha keys may only contain safe credential characters.');
+            }
+        }
+
+        foreach (['RECAPTCHA_V2_SECRET', 'RECAPTCHA_V3_SECRET', 'TURNSTILE_SECRET', 'ALTCHA_SECRET', 'ALTCHA_SENTINEL_API_KEY'] as $field) {
+            $value = $this->getSubmittedSecretValue(
+                self::CONFIG_PREFIX . $field,
+                (string) Configuration::get(self::CONFIG_PREFIX . $field)
+            );
+            if ($value !== '' && !$this->isSafeCredential($value, 512)) {
+                return $this->l('Captcha secrets may only contain safe credential characters.');
+            }
+        }
+
+        $action = (string) Tools::getValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION');
+        if ($action !== '' && !$this->isSafeToken($action, 64)) {
+            return $this->l('reCAPTCHA v3 action contains invalid characters.');
+        }
+
+        if ($provider === 'recaptcha_v2'
+            && (trim((string) Tools::getValue(self::CONFIG_PREFIX . 'RECAPTCHA_V2_SITEKEY')) === ''
+                || $this->getSubmittedSecretValue(self::CONFIG_PREFIX . 'RECAPTCHA_V2_SECRET', (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V2_SECRET')) === '')) {
+            return $this->l('reCAPTCHA v2 site key and secret key are required.');
+        }
+
+        if ($provider === 'recaptcha_v3'
+            && (trim((string) Tools::getValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_SITEKEY')) === ''
+                || $this->getSubmittedSecretValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_SECRET', (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_SECRET')) === '')) {
+            return $this->l('reCAPTCHA v3 site key and secret key are required.');
+        }
+
+        if ($provider === 'turnstile'
+            && (trim((string) Tools::getValue(self::CONFIG_PREFIX . 'TURNSTILE_SITEKEY')) === ''
+                || $this->getSubmittedSecretValue(self::CONFIG_PREFIX . 'TURNSTILE_SECRET', (string) Configuration::get(self::CONFIG_PREFIX . 'TURNSTILE_SECRET')) === '')) {
+            return $this->l('Turnstile site key and secret key are required.');
+        }
+
+        if ($provider === 'altcha'
+            && $this->getSubmittedSecretValue(self::CONFIG_PREFIX . 'ALTCHA_SECRET', (string) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_SECRET')) === '') {
+            return $this->l('ALTCHA HMAC secret is required.');
+        }
+
+        if ($provider === 'altcha_sentinel'
+            && ($this->getSubmittedSecretValue(self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_API_KEY', (string) Configuration::get(self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_API_KEY')) === ''
+                || trim((string) Tools::getValue(self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_URL')) === '')) {
+            return $this->l('ALTCHA Sentinel URL and API key are required.');
+        }
+
+        return '';
+    }
+
+    /**
      * Save boolean fields for a dedicated configuration tab.
      *
-     * @param array $fields Boolean field suffixes.
+     * @param array $fields Boolean field suffixes
      *
      * @return string
      */
@@ -464,6 +694,11 @@ class Tec_spamguard extends Module
         }
 
         foreach (['BLOCKED_EMAILS', 'BLOCKED_DOMAINS', 'BLOCKED_EMAIL_PATTERNS'] as $field) {
+            $error = $this->validateEmailValidationTextarea($field, (string) Tools::getValue(self::CONFIG_PREFIX . $field));
+            if ($error !== '') {
+                return $this->displayError($error);
+            }
+
             Configuration::updateValue(
                 self::CONFIG_PREFIX . $field,
                 $this->normalizeTextarea((string) Tools::getValue(self::CONFIG_PREFIX . $field))
@@ -490,9 +725,14 @@ class Tec_spamguard extends Module
             return $this->displayError($this->l('Maximum message links must be between 0 and 20.'));
         }
 
+        $blockedTexts = (string) Tools::getValue(self::CONFIG_PREFIX . 'BLOCKED_MESSAGE_TEXTS');
+        if (Tools::strlen($blockedTexts) > 5000) {
+            return $this->displayError($this->l('Blocked message text is too long.'));
+        }
+
         Configuration::updateValue(
             self::CONFIG_PREFIX . 'BLOCKED_MESSAGE_TEXTS',
-            $this->normalizeTextarea((string) Tools::getValue(self::CONFIG_PREFIX . 'BLOCKED_MESSAGE_TEXTS'))
+            $this->normalizeTextarea($blockedTexts)
         );
         Configuration::updateValue(self::CONFIG_PREFIX . 'MAX_MESSAGE_LINKS', $maxLinks);
 
@@ -617,8 +857,8 @@ class Tec_spamguard extends Module
     /**
      * Render one independent configuration form.
      *
-     * @param string $submitAction Submit action name.
-     * @param array $form Form definition.
+     * @param string $submitAction Submit action name
+     * @param array $form Form definition
      *
      * @return string
      */
@@ -703,10 +943,31 @@ class Tec_spamguard extends Module
                     ['type' => 'switch', 'label' => $this->l('Hide ALTCHA logo'), 'name' => self::CONFIG_PREFIX . 'ALTCHA_HIDE_LOGO', 'is_bool' => true, 'values' => $this->getSwitchValues(), 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-altcha tec-spamguard-provider-altcha_sentinel'],
                     ['type' => 'text', 'label' => $this->l('ALTCHA Sentinel URL'), 'name' => self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_URL', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-altcha_sentinel'],
                     ['type' => 'text', 'label' => $this->l('ALTCHA Sentinel API key'), 'name' => self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_API_KEY', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-altcha_sentinel'],
+                    ['type' => 'free', 'name' => self::CONFIG_PREFIX . 'CAPTCHA_TEST'],
                 ],
                 'submit' => ['title' => $this->l('Save')],
             ],
         ];
+    }
+
+    /**
+     * Render the captcha settings test button.
+     *
+     * @return string
+     */
+    private function renderCaptchaTestButton()
+    {
+        $url = AdminController::$currentIndex . '&configure=' . $this->name
+            . '&token=' . Tools::getAdminTokenLite('AdminModules')
+            . '&ajax=1&action=testCaptchaKeys';
+
+        $this->context->smarty->assign([
+            'tec_spamguard_captcha_test_url' => $url,
+            'tec_spamguard_captcha_test_label' => $this->l('Test captcha keys'),
+            'tec_spamguard_captcha_test_running' => $this->l('Testing...'),
+        ]);
+
+        return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/captcha_test_button.tpl');
     }
 
     /**
@@ -790,6 +1051,7 @@ class Tec_spamguard extends Module
             $key = self::CONFIG_PREFIX . $field;
             $values[$key] = $this->maskSecret((string) Configuration::get($key));
         }
+        $values[self::CONFIG_PREFIX . 'CAPTCHA_TEST'] = $this->renderCaptchaTestButton();
 
         return $values;
     }
@@ -797,7 +1059,7 @@ class Tec_spamguard extends Module
     /**
      * Return the submitted form descriptor.
      *
-     * @return \TecSpamGuard\Form\FormInterface|null
+     * @return FormInterface|null
      */
     private function getSubmittedForm()
     {
@@ -814,32 +1076,32 @@ class Tec_spamguard extends Module
     /**
      * Build a form descriptor.
      *
-     * @param string $type Form type.
+     * @param string $type Form type
      *
-     * @return \TecSpamGuard\Form\FormInterface
+     * @return FormInterface
      */
     private function buildForm($type)
     {
         switch ($type) {
             case 'contact':
-                return new \TecSpamGuard\Form\ContactForm($this->context);
+                return new ContactForm($this->context);
             case 'register':
-                return new \TecSpamGuard\Form\RegisterForm($this->context);
+                return new RegisterForm($this->context);
             case 'login':
-                return new \TecSpamGuard\Form\LoginForm($this->context);
+                return new LoginForm($this->context);
         }
 
-        return new \TecSpamGuard\Form\PasswordForm($this->context);
+        return new PasswordForm($this->context);
     }
 
     /**
      * Validate a submitted form.
      *
-     * @param \TecSpamGuard\Form\FormInterface $form Form descriptor.
+     * @param FormInterface $form Form descriptor
      *
-     * @return string Error message or empty string.
+     * @return string Error message or empty string
      */
-    private function validateSubmittedForm(\TecSpamGuard\Form\FormInterface $form)
+    private function validateSubmittedForm(FormInterface $form)
     {
         if ($this->isFormCaptchaEnabled($form->getType())) {
             $error = $this->validateCaptcha();
@@ -849,7 +1111,7 @@ class Tec_spamguard extends Module
         }
 
         if ($this->isFormEmailValidationEnabled($form->getType()) && $form->getEmail() !== '') {
-            $validator = new \TecSpamGuard\Validation\EmailValidator(
+            $validator = new EmailValidator(
                 $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_EMAILS')),
                 $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_DOMAINS')),
                 $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_EMAIL_PATTERNS')),
@@ -862,7 +1124,7 @@ class Tec_spamguard extends Module
         }
 
         if ($this->isFormMessageValidationEnabled($form->getType()) && $form->getMessage() !== '') {
-            $validator = new \TecSpamGuard\Validation\MessageValidator(
+            $validator = new MessageValidator(
                 $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_MESSAGE_TEXTS')),
                 (int) Configuration::get(self::CONFIG_PREFIX . 'MAX_MESSAGE_LINKS')
             );
@@ -877,7 +1139,7 @@ class Tec_spamguard extends Module
     /**
      * Validate captcha token with the configured provider.
      *
-     * @return string Error message or empty string.
+     * @return string Error message or empty string
      */
     private function validateCaptcha()
     {
@@ -896,8 +1158,8 @@ class Tec_spamguard extends Module
     /**
      * Reject the current POST request.
      *
-     * @param string $error Error message.
-     * @param string $formType Protected form type.
+     * @param string $error Error message
+     * @param string $formType Protected form type
      *
      * @return void
      */
@@ -916,7 +1178,7 @@ class Tec_spamguard extends Module
     /**
      * Return the canonical page URL for a protected form.
      *
-     * @param string $formType Protected form type.
+     * @param string $formType Protected form type
      *
      * @return string
      */
@@ -1004,7 +1266,7 @@ class Tec_spamguard extends Module
     /**
      * Check if captcha is enabled for a form.
      *
-     * @param string $type Form type.
+     * @param string $type Form type
      *
      * @return bool
      */
@@ -1016,7 +1278,7 @@ class Tec_spamguard extends Module
     /**
      * Check if email validation is enabled for a form.
      *
-     * @param string $type Form type.
+     * @param string $type Form type
      *
      * @return bool
      */
@@ -1028,7 +1290,7 @@ class Tec_spamguard extends Module
     /**
      * Check if message validation is enabled for a form.
      *
-     * @param string $type Form type.
+     * @param string $type Form type
      *
      * @return bool
      */
@@ -1056,7 +1318,7 @@ class Tec_spamguard extends Module
             case 'altcha_sentinel':
                 $provider = $this->createCaptchaProvider();
 
-                return $provider instanceof \TecSpamGuard\Captcha\AltchaSentinelProvider ? $provider->getChallengeUrl() : '';
+                return $provider instanceof AltchaSentinelProvider ? $provider->getChallengeUrl() : '';
         }
 
         return '';
@@ -1065,12 +1327,12 @@ class Tec_spamguard extends Module
     /**
      * Return captcha script URL with provider-specific public parameters.
      *
-     * @param \TecSpamGuard\Captcha\CaptchaProviderInterface $provider Captcha provider.
-     * @param string $siteKey Public site key or challenge URL.
+     * @param CaptchaProviderInterface $provider Captcha provider
+     * @param string $siteKey Public site key or challenge URL
      *
      * @return string
      */
-    private function getCaptchaScriptUrl(\TecSpamGuard\Captcha\CaptchaProviderInterface $provider, $siteKey)
+    private function getCaptchaScriptUrl(CaptchaProviderInterface $provider, $siteKey)
     {
         if ($provider->getId() === 'recaptcha_v3') {
             return 'https://www.google.com/recaptcha/api.js?render=' . rawurlencode((string) $siteKey);
@@ -1105,7 +1367,7 @@ class Tec_spamguard extends Module
     /**
      * Return normalized non-empty textarea lines.
      *
-     * @param string $value Raw textarea value.
+     * @param string $value Raw textarea value
      *
      * @return array
      */
@@ -1126,7 +1388,7 @@ class Tec_spamguard extends Module
     /**
      * Normalize textarea value.
      *
-     * @param string $value Raw textarea value.
+     * @param string $value Raw textarea value
      *
      * @return string
      */
@@ -1138,8 +1400,8 @@ class Tec_spamguard extends Module
     /**
      * Normalize token-like config values.
      *
-     * @param string $value Submitted value.
-     * @param string $fallback Fallback value.
+     * @param string $value Submitted value
+     * @param string $fallback Fallback value
      *
      * @return string
      */
@@ -1151,9 +1413,78 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Validate a safe token-like value.
+     *
+     * @param string $value Submitted value
+     * @param int $maxLength Maximum length
+     *
+     * @return bool
+     */
+    private function isSafeToken($value, $maxLength)
+    {
+        $value = trim((string) $value);
+
+        return $value !== ''
+            && Tools::strlen($value) <= (int) $maxLength
+            && (bool) preg_match('/^[A-Za-z0-9_\/.-]+$/', $value);
+    }
+
+    /**
+     * Validate a safe API credential value.
+     *
+     * @param string $value Submitted value
+     * @param int $maxLength Maximum length
+     *
+     * @return bool
+     */
+    private function isSafeCredential($value, $maxLength)
+    {
+        $value = trim((string) $value);
+
+        return $value !== ''
+            && Tools::strlen($value) <= (int) $maxLength
+            && (bool) preg_match('/^[A-Za-z0-9._~+\/=:;,@-]+$/', $value);
+    }
+
+    /**
+     * Validate an email validation textarea.
+     *
+     * @param string $field Field suffix
+     * @param string $value Submitted value
+     *
+     * @return string Error message or empty string
+     */
+    private function validateEmailValidationTextarea($field, $value)
+    {
+        if (Tools::strlen((string) $value) > 10000) {
+            return $this->l('Email validation list is too long.');
+        }
+
+        foreach ($this->getLines($value) as $line) {
+            if (Tools::strlen($line) > 255) {
+                return $this->l('Email validation entries must be shorter than 255 characters.');
+            }
+
+            if ($field === 'BLOCKED_EMAILS' && !Validate::isEmail($line)) {
+                return $this->l('Blocked email entries must be valid email addresses.');
+            }
+
+            if ($field === 'BLOCKED_DOMAINS' && !preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $line)) {
+                return $this->l('Blocked domain entries must be valid domain names.');
+            }
+
+            if ($field === 'BLOCKED_EMAIL_PATTERNS' && !preg_match('/^[a-z0-9._%+\-*?@-]+$/', $line)) {
+                return $this->l('Blocked email patterns contain invalid characters.');
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Mask a stored secret for display.
      *
-     * @param string $value Secret value.
+     * @param string $value Secret value
      *
      * @return string
      */
@@ -1170,8 +1501,8 @@ class Tec_spamguard extends Module
     /**
      * Preserve masked secret values on save.
      *
-     * @param string $key Configuration key.
-     * @param string $current Current value.
+     * @param string $key Configuration key
+     * @param string $current Current value
      *
      * @return string
      */

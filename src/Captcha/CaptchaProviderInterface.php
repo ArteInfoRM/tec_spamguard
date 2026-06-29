@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -24,4 +25,6 @@ interface CaptchaProviderInterface
     public function getResponseFieldName();
 
     public function verify($token, $secret, $remoteIp);
+
+    public function testKeys($siteKey, $secret);
 }

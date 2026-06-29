@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -15,8 +16,8 @@ if (!defined('_PS_VERSION_')) {
 
 class AltchaProvider implements CaptchaProviderInterface
 {
-    const SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/altcha@3.1.0/dist/main/altcha.js';
-    const ALGORITHM = 'SHA-256';
+    public const SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/altcha@3.1.0/dist/main/altcha.js';
+    public const ALGORITHM = 'SHA-256';
 
     private $hideFooter;
     private $hideLogo;
@@ -113,6 +114,39 @@ class AltchaProvider implements CaptchaProviderInterface
         }
 
         return ['success' => true, 'errors' => []];
+    }
+
+    public function testKeys($siteKey, $secret)
+    {
+        unset($siteKey);
+
+        $secret = trim((string) $secret);
+        if ($secret === '') {
+            return [
+                'success' => false,
+                'message' => 'ALTCHA HMAC secret must be set.',
+            ];
+        }
+
+        if (!preg_match('/^[A-Za-z0-9._~+\/=-]{16,256}$/', $secret)) {
+            return [
+                'success' => false,
+                'message' => 'ALTCHA HMAC secret must contain 16 to 256 safe characters.',
+            ];
+        }
+
+        $challenge = $this->createChallenge($secret, 1, 300);
+        if (empty($challenge['challenge']) || empty($challenge['signature']) || empty($challenge['salt'])) {
+            return [
+                'success' => false,
+                'message' => 'ALTCHA challenge generation failed.',
+            ];
+        }
+
+        return [
+            'success' => true,
+            'message' => 'ALTCHA configuration appears to be valid.',
+        ];
     }
 
     private function decodePayload($token)

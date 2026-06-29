@@ -37,12 +37,14 @@
                 class="tab-pane{if $tab.active} active{/if}"
                 id="tec-spamguard-{$tab.id|escape:'html':'UTF-8'}"
             >
+                {* Back-office generated HTML from HelperForm or module templates; configuration values are validated and sanitized server-side before rendering. *}
                 {$tab.form nofilter}
             </div>
         {/foreach}
     </div>
 </div>
 
+{* Back-office generated credits panel; all assigned values are escaped in the source template. *}
 {$tec_spamguard_credits nofilter}
 
 <script>

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -32,6 +33,11 @@ class RecaptchaV3Provider extends RecaptchaV2Provider
     public function getLabel()
     {
         return 'Google reCAPTCHA v3';
+    }
+
+    public function testKeys($siteKey, $secret)
+    {
+        return parent::testKeys($siteKey, $secret);
     }
 
     public function getScriptUrl($langIso)

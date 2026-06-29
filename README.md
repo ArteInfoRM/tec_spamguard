@@ -13,6 +13,8 @@ Tec Spam Guard protects contact, registration, login, and password reset forms w
 - Manual blocked email addresses, blocked domains, and wildcard email patterns.
 - Contact message validation with blocked words or phrases and a maximum link count.
 - Masked secret fields in the back office so existing credentials are not exposed or accidentally cleared.
+- Back-office captcha key test button for Google reCAPTCHA, Cloudflare Turnstile, ALTCHA, and ALTCHA Sentinel.
+- Server-side validation for all module configuration fields before values are saved.
 
 ## Compatibility
 

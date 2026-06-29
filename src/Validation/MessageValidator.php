@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -49,6 +50,6 @@ class MessageValidator
     {
         preg_match_all('#https?://|www\.#i', (string) $message, $matches);
 
-        return isset($matches[0]) ? count($matches[0]) : 0;
+        return count($matches[0]);
     }
 }

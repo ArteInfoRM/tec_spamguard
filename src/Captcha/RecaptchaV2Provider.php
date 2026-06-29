@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -15,8 +16,8 @@ if (!defined('_PS_VERSION_')) {
 
 class RecaptchaV2Provider implements CaptchaProviderInterface
 {
-    const SCRIPT_URL = 'https://www.google.com/recaptcha/api.js';
-    const VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
+    public const SCRIPT_URL = 'https://www.google.com/recaptcha/api.js';
+    public const VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
 
     public function getId()
     {
@@ -47,6 +48,43 @@ class RecaptchaV2Provider implements CaptchaProviderInterface
             'response' => $token,
             'remoteip' => $remoteIp,
         ]);
+    }
+
+    public function testKeys($siteKey, $secret)
+    {
+        $siteKey = trim((string) $siteKey);
+        $secret = trim((string) $secret);
+
+        if ($siteKey === '' || $secret === '') {
+            return [
+                'success' => false,
+                'message' => 'Both the site key and the secret key must be set.',
+            ];
+        }
+
+        $result = $this->verify('tec_spamguard_test_token', $secret, '127.0.0.1');
+        if (!empty($result['success'])) {
+            return ['success' => true, 'message' => 'Captcha keys appear to be valid.'];
+        }
+
+        if (in_array('invalid-input-secret', $result['errors'], true)) {
+            return [
+                'success' => false,
+                'message' => 'The secret key is rejected by Google. Check the value in the reCAPTCHA admin console.',
+            ];
+        }
+
+        if (in_array('invalid-input-response', $result['errors'], true)) {
+            return [
+                'success' => true,
+                'message' => 'Captcha keys appear to be valid. Google accepted the secret and rejected the test token as expected.',
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => 'Captcha validation failed: ' . implode(', ', $result['errors']),
+        ];
     }
 
     protected function postVerify($url, array $payload)
