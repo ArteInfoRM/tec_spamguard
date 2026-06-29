@@ -1,0 +1,106 @@
+/**
+ * 2009-2026 Tecnoacquisti.com
+ *
+ * Back-office styles for tec_spamguard.
+ *
+ * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
+ * @copyright 2009-2026 Arte e Informatica
+ * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+ */
+
+body.tec-spamguard-ps9-config-page h4.page-subtitle {
+    display: none;
+}
+
+.tec-spamguard-config-panel {
+    background: #fff;
+    border: 1px solid #dbe6ec;
+    border-radius: 4px;
+    box-shadow: none;
+    margin-bottom: 20px;
+    padding: 18px;
+}
+
+.tec-spamguard-config-header {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.tec-spamguard-config-title {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    min-width: 0;
+}
+
+.tec-spamguard-config-logo {
+    flex: 0 0 auto;
+    height: 42px;
+    object-fit: contain;
+    width: 42px;
+}
+
+.tec-spamguard-config-name {
+    color: #363a41;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.tec-spamguard-tab-content {
+    margin-bottom: 0;
+}
+
+body.tec-spamguard-ps9-config-page .tec-spamguard-config-header {
+    padding-top: 15px;
+}
+
+body.tec-spamguard-ps9-config-page ul.nav.nav-tabs.tec-spamguard-tabs {
+    background: #f6f6f6;
+}
+
+body.tec-spamguard-ps9-config-page ul.nav.nav-tabs.tec-spamguard-tabs > li,
+body.tec-spamguard-ps9-config-page ul.nav.nav-tabs.tec-spamguard-tabs > li > a,
+body.tec-spamguard-ps9-config-page ul.nav.nav-tabs.tec-spamguard-tabs > li > a:hover,
+body.tec-spamguard-ps9-config-page ul.nav.nav-tabs.tec-spamguard-tabs > li > a:focus,
+body.tec-spamguard-ps9-config-page ul.nav.nav-tabs.tec-spamguard-tabs > li.active > a {
+    text-decoration: none !important;
+}
+
+body.tec-spamguard-ps9-config-page .tec-spamguard-tab-content {
+    background: #f8f8f8;
+    margin: 1rem;
+    padding-top: 20px !important;
+}
+
+.tec-spamguard-credits-panel {
+    overflow: hidden;
+}
+
+.tec-spamguard-credits-logo-link {
+    float: right;
+    margin: 0 0 16px 24px;
+}
+
+.tec-spamguard-credits-logo {
+    display: block;
+    height: auto;
+    max-width: 350px;
+    width: 100%;
+}
+
+@media (max-width: 767px) {
+    .tec-spamguard-config-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .tec-spamguard-credits-logo-link {
+        float: none;
+        margin: 0 0 16px;
+    }
+}
