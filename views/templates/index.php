@@ -1,5 +1,4 @@
 <?php
-
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -9,6 +8,5 @@
  * @copyright 2009-2026 Arte e Informatica
  * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
  */
-
 header('Location: ../../');
 exit;

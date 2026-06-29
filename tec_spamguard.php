@@ -1,5 +1,4 @@
 <?php
-
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -254,21 +253,21 @@ class Tec_spamguard extends Module
         $secret = trim($secret);
 
         if (!in_array($providerId, ['recaptcha_v2', 'recaptcha_v3', 'turnstile', 'altcha', 'altcha_sentinel'], true)) {
-            die(json_encode([
+            exit(json_encode([
                 'success' => false,
                 'message' => $this->l('Select a captcha provider before testing.'),
             ]));
         }
 
         if ($providerId !== 'altcha' && ($siteKey === '' || $secret === '')) {
-            die(json_encode([
+            exit(json_encode([
                 'success' => false,
                 'message' => $this->l('Site key and secret key must both be set.'),
             ]));
         }
 
         if ($providerId === 'altcha' && $secret === '') {
-            die(json_encode([
+            exit(json_encode([
                 'success' => false,
                 'message' => $this->l('ALTCHA HMAC secret must be set.'),
             ]));
@@ -276,7 +275,7 @@ class Tec_spamguard extends Module
 
         $result = $this->validateCaptchaProviderKeys($providerId, $siteKey, $secret);
 
-        die(json_encode([
+        exit(json_encode([
             'success' => (bool) $result['success'],
             'message' => (string) $result['message'],
         ]));
