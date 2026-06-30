@@ -5,7 +5,7 @@
  *
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
- * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+ * @license   MIT License
  */
 
 (function () {
@@ -21,6 +21,33 @@
 
     function getConfig() {
         return window.tecSpamGuard || null;
+    }
+
+    function getUniqueValue() {
+        return String(Date.now()) + String(Math.floor(Math.random() * 1000000));
+    }
+
+    function withCacheBuster(url, type) {
+        var challengeUrl;
+
+        try {
+            challengeUrl = new URL(url, window.location.href);
+        } catch (error) {
+            return url;
+        }
+
+        challengeUrl.searchParams.set('_tec_spamguard_form', type);
+        challengeUrl.searchParams.set('_tec_spamguard_challenge', getUniqueValue());
+
+        return challengeUrl.toString();
+    }
+
+    function isInside(form, selector) {
+        return !!form.closest(selector);
+    }
+
+    function isVisible(form) {
+        return !!(form.offsetWidth || form.offsetHeight || form.getClientRects().length);
     }
 
     function formActionMatchesCurrentPage(form) {
@@ -42,14 +69,21 @@
 
     function getForms(type) {
         return Array.prototype.filter.call(document.querySelectorAll('form'), function (form) {
+            if (!isVisible(form)) {
+                return false;
+            }
             if (type === 'contact') {
                 return !!form.querySelector('[name="submitMessage"]');
             }
             if (type === 'register') {
-                return !!form.querySelector('[name="submitCreate"], [name="submitAccount"]');
+                return !!form.querySelector('[name="submitCreate"], [name="submitAccount"]')
+                    || form.id === 'customer-form'
+                    || isInside(form, 'section.register-form');
             }
             if (type === 'login') {
-                return !!form.querySelector('[name="submitLogin"], [name="SubmitLogin"]');
+                return !!form.querySelector('[name="submitLogin"], [name="SubmitLogin"]')
+                    || form.id === 'login-form'
+                    || isInside(form, 'section.login-form');
             }
             if (type === 'password') {
                 if (form.querySelector('#send-reset-link')) {
@@ -72,6 +106,46 @@
 
     function findSubmit(form) {
         return form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+    }
+
+    function getEmailField(form, type) {
+        if (type === 'contact') {
+            return form.querySelector('input[name="from"]');
+        }
+
+        return form.querySelector('input[type="email"][name="email"], input[name="email"]');
+    }
+
+    function getEmailDomain(value) {
+        var parts = String(value || '').trim().toLowerCase().split('@');
+
+        return parts.length === 2 ? parts[1] : '';
+    }
+
+    function buildDomainMap(domains) {
+        var map = {};
+
+        (domains || []).forEach(function (domain) {
+            domain = String(domain || '').trim().toLowerCase();
+            if (domain) {
+                map[domain] = true;
+            }
+        });
+
+        return map;
+    }
+
+    function afterFormAttempt(form, callback) {
+        var submit = findSubmit(form);
+
+        form.addEventListener('submit', function () {
+            window.setTimeout(callback, 1000);
+        });
+        if (submit) {
+            submit.addEventListener('click', function () {
+                window.setTimeout(callback, 1000);
+            });
+        }
     }
 
     function ensureContainer(form, type) {
@@ -105,6 +179,22 @@
         input.value = value;
     }
 
+    function resetAltchaWidget(widget, type, config) {
+        if (!widget) {
+            return;
+        }
+
+        widget.setAttribute('challenge', withCacheBuster(config.siteKey, type));
+        if (typeof widget.configure === 'function') {
+            widget.configure({
+                challenge: widget.getAttribute('challenge')
+            });
+        }
+        if (typeof widget.reset === 'function') {
+            widget.reset();
+        }
+    }
+
     function renderRecaptchaV2(form, type, config) {
         var container = ensureContainer(form, type);
         if (container.getAttribute('data-rendered') === '1') {
@@ -113,6 +203,15 @@
         container.className += ' g-recaptcha';
         container.setAttribute('data-sitekey', config.siteKey);
         container.setAttribute('data-rendered', '1');
+        afterFormAttempt(form, function () {
+            try {
+                if (window.grecaptcha && typeof window.grecaptcha.reset === 'function') {
+                    window.grecaptcha.reset();
+                }
+            } catch (error) {
+                // Provider reset is best-effort after an AJAX submit attempt.
+            }
+        });
     }
 
     function renderTurnstile(form, type, config) {
@@ -123,6 +222,15 @@
         container.className += ' cf-turnstile';
         container.setAttribute('data-sitekey', config.siteKey);
         container.setAttribute('data-rendered', '1');
+        afterFormAttempt(form, function () {
+            try {
+                if (window.turnstile && typeof window.turnstile.reset === 'function') {
+                    window.turnstile.reset(container);
+                }
+            } catch (error) {
+                // Provider reset is best-effort after an AJAX submit attempt.
+            }
+        });
     }
 
     function renderAltcha(form, type, config) {
@@ -132,11 +240,24 @@
         }
 
         var widget = document.createElement('altcha-widget');
-        widget.setAttribute('challenge', config.siteKey);
+        widget.setAttribute('challenge', withCacheBuster(config.siteKey, type));
         widget.setAttribute('name', config.responseField);
         if (config.widgetAttributes) {
             widget.setAttribute('configuration', JSON.stringify(config.widgetAttributes));
         }
+        widget.addEventListener('expired', function () {
+            resetAltchaWidget(widget, type, config);
+        });
+        widget.addEventListener('statechange', function (event) {
+            if (event.detail && event.detail.state === 'error') {
+                window.setTimeout(function () {
+                    resetAltchaWidget(widget, type, config);
+                }, 500);
+            }
+        });
+        afterFormAttempt(form, function () {
+            resetAltchaWidget(widget, type, config);
+        });
         container.appendChild(widget);
         container.setAttribute('data-rendered', '1');
     }
@@ -179,16 +300,71 @@
         }
     }
 
-    ready(function () {
-        var config = getConfig();
-        if (!config || !config.provider || !config.forms || !config.siteKey) {
+    function bindEmailAdvisory(type, form, config, domainMap) {
+        var emailField;
+
+        if (form.getAttribute('data-tec-spamguard-email-advisory') === '1') {
             return;
         }
 
-        Object.keys(config.forms).forEach(function (type) {
-            getForms(type).forEach(function (form) {
-                initForm(type, form, config);
-            });
+        emailField = getEmailField(form, type);
+        if (!emailField) {
+            return;
+        }
+
+        form.setAttribute('data-tec-spamguard-email-advisory', '1');
+        form.addEventListener('submit', function (event) {
+            var email = emailField.value || '';
+            var domain = getEmailDomain(email);
+            var confirmedValue = form.getAttribute('data-tec-spamguard-advisory-confirmed') || '';
+
+            if (!domain || !domainMap[domain] || confirmedValue === email) {
+                return;
+            }
+
+            var message = config.emailAdvisoryMessages && config.emailAdvisoryMessages[type]
+                ? config.emailAdvisoryMessages[type]
+                : config.emailAdvisoryMessage;
+
+            if (window.confirm(message)) {
+                form.setAttribute('data-tec-spamguard-advisory-confirmed', email);
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
         });
+    }
+
+    function initProtectedForms() {
+        var config = getConfig();
+        if (!config) {
+            return;
+        }
+
+        if (config.emailAdvisoryForms && config.emailAdvisoryDomains && config.emailAdvisoryMessage) {
+            var domainMap = buildDomainMap(config.emailAdvisoryDomains);
+            Object.keys(config.emailAdvisoryForms).forEach(function (type) {
+                getForms(type).forEach(function (form) {
+                    bindEmailAdvisory(type, form, config, domainMap);
+                });
+            });
+        }
+
+        if (config.provider && config.forms && config.siteKey) {
+            Object.keys(config.forms).forEach(function (type) {
+                getForms(type).forEach(function (form) {
+                    initForm(type, form, config);
+                });
+            });
+        }
+    }
+
+    ready(function () {
+        initProtectedForms();
+        if (window.prestashop && typeof window.prestashop.on === 'function') {
+            window.prestashop.on('updatedCheckout', initProtectedForms);
+            window.prestashop.on('changedCheckoutStep', initProtectedForms);
+        }
     });
 }());

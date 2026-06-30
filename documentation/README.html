@@ -114,14 +114,20 @@
 <main>
     <div class="generated-note">Generated from the Markdown source included with the module.</div>
 <h1>Tec Spam Guard</h1>
+<p><a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"></a> <img alt="Built for PrestaShop" src="https://img.shields.io/badge/Built%20for-PrestaShop-DF0067?logo=prestashop&amp;logoColor=white"></p>
 <blockquote>PrestaShop anti-spam module for front-office forms.</blockquote>
-<p>Tec Spam Guard protects contact, registration, login, and password reset forms with configurable captcha providers, email validation, disposable-domain blocking, and contact message checks.</p>
+<p>Tec Spam Guard by Tecnoacquisti.com® protects contact, registration, login, checkout identity, and password reset forms with configurable captcha providers, email validation, disposable-domain blocking, and contact message checks.</p>
 <h2>Features</h2>
 <ul>
 <li>Captcha providers: Google reCAPTCHA v2, Google reCAPTCHA v3, Cloudflare Turnstile, ALTCHA, and ALTCHA Sentinel.</li>
-<li>Per-form captcha switches for Contact, Register, Login, and Forgot password.</li>
+<li>Per-form captcha switches for Contact, Register, Login, Checkout identity, and Forgot password.</li>
+<li>Optional checkout captcha switch: checkout registration and login follow the normal Register and Login captcha settings only when checkout captcha is enabled.</li>
+<li>Optional captcha bypass for logged-in customers.</li>
 <li>Email validation for Contact and Register by default, with optional validation on Login and Forgot password.</li>
+<li>Email validation works independently from captcha settings, including during checkout when enabled for Register or Login.</li>
 <li>Disposable email domain blocking from a local list.</li>
+<li>Non-blocking warning popup for configured discouraged email domains, allowing customers to continue after confirming the warning.</li>
+<li>Manual back-office update for the local disposable email domain list from <code>https://disposable.github.io/disposable-email-domains/domains_mx.txt</code>, with validation and timestamped backup.</li>
 <li>Manual blocked email addresses, blocked domains, and wildcard email patterns.</li>
 <li>Contact message validation with blocked words or phrases and a maximum link count.</li>
 <li>Masked secret fields in the back office so existing credentials are not exposed or accidentally cleared.</li>
@@ -133,19 +139,58 @@
 <li>PrestaShop 1.7, 8.x, and 9.x.</li>
 <li>PHP 7.0+.</li>
 <li>No dependency on Tec Block AI Bots.</li>
+<li>Released under the MIT License.</li>
 </ul>
-<h2>Initial Scope</h2>
-<p>The first version intentionally focuses on native PrestaShop forms:</p>
+<h2>Protected Forms</h2>
+<p>The module focuses on native PrestaShop front-office forms:</p>
 <ul>
 <li>Contact us</li>
 <li>Customer registration</li>
 <li>Customer login</li>
+<li>Checkout guest/customer creation</li>
+<li>Checkout login</li>
 <li>Forgot password</li>
 </ul>
 <p>Additional forms such as newsletter, product reviews, quick order, and stock notifications can be added later with the same form descriptor pattern.</p>
+<h2>Captcha Activation</h2>
+<p>Captcha can be enabled separately for each supported form. The checkout has an extra control because checkout registration and login are the same logical form types as normal registration and login, but merchants may want a different user experience during order creation.</p>
+<p>The checkout rule is:</p>
+<ul>
+<li><code>Captcha on registration form</code> controls registration captcha globally.</li>
+<li><code>Captcha on login form</code> controls login captcha globally.</li>
+<li><code>Captcha during checkout</code> decides whether those Register and Login captcha settings also apply inside the checkout.</li>
+</ul>
+<p>If <code>Captcha during checkout</code> is disabled, the checkout does not ask for captcha on registration or login, even if the normal Register or Login captcha settings are enabled. This affects only captcha. Email validation remains independent and still runs when the related Register or Login email validation switch is enabled.</p>
+<p>The <code>Skip captcha for logged-in customers</code> option can be enabled to avoid asking authenticated customers to solve captcha challenges. This is useful on account, checkout, and contact flows where a logged-in customer has already passed the shop authentication step. This option only skips captcha; email validation and message validation continue to run when enabled.</p>
+<h2>Email And Message Validation</h2>
+<p>Email validation is independent from captcha. When enabled for a form, the module checks the submitted email server-side even if captcha is disabled for that form or skipped for the current customer. Email validation can block:</p>
+<ul>
+<li>exact email addresses;</li>
+<li>entire domains;</li>
+<li>wildcard patterns such as <code>*@example.com</code>;</li>
+<li>disposable email domains from the bundled local list.</li>
+</ul>
+<p>The same Email validation tab also includes <code>Discouraged email domains</code>. This list is advisory, not blocking. When <code>Show warning for discouraged email domains</code> is enabled and a customer uses one of those domains on a protected email-validation form, the front office shows a confirmation popup explaining that the address often has delivery problems and recommending another email address. If the customer confirms, the form can still be submitted. The default advisory list is <code>libero.it</code>, <code>virgilio.it</code>, <code>tiscali.it</code>, <code>tin.it</code>, <code>t-online.de</code>, <code>aol.com</code>, <code>tim.it</code>, <code>aruba.it</code>, <code>outlook.it</code>, <code>outlook.com</code>, <code>hotmail.com</code>, <code>live.it</code>, and <code>live.com</code>.</p>
+<p>Contact message validation is also independent from captcha. It can block configured words or phrases and reject contact messages with too many links.</p>
+<p>The bundled disposable email domain file can be reviewed from the Information tab in the back office. The same tab also includes a manual update button that downloads the maintained <code>domains_mx.txt</code> list from <code>disposable.github.io</code>, validates the downloaded domains, creates a timestamped backup of the current local file, and then replaces <code>data/disposable_domains.txt</code>. The module keeps the 5 most recent disposable-domain backups and removes older backup files automatically after a successful update.</p>
 <h2>Captcha Notes</h2>
 <p>ALTCHA local challenges are generated by the module through the <code>altchachallenge</code> front controller and signed with the configured HMAC secret. ALTCHA Sentinel uses the configured Sentinel challenge URL and verifies the solved payload server-side.</p>
 <p>For Google reCAPTCHA v3, the default action is <code>tec_spamguard</code> and the default minimum score is <code>0.50</code>.</p>
+<h2>Captcha Provider Comparison</h2>
+<p>The best captcha service depends on the shop risk profile, privacy requirements, expected traffic, and operational capacity. The table below gives a quick comparison of the providers supported by the module.</p>
+<p>Prices and commercial terms can change. Always verify current provider pricing, data processing terms, and regional compliance requirements before choosing a production setup.</p>
+<table><thead><tr><th>Solution</th><th>Effectiveness</th><th>Protection type</th><th>Weak point</th><th>GDPR</th><th>Limits</th></tr></thead><tbody><tr><td>Google reCAPTCHA v2</td><td>High against simple automated spam, familiar to users</td><td>Interactive challenge and risk signals from Google</td><td>Can interrupt checkout and form conversion; depends on Google services; accessibility can vary by challenge</td><td>Requires Google data processing assessment, privacy notice updates, and consent/legal basis review</td><td>External service dependency; possible quota, pricing, or policy changes; visible challenge can add friction</td></tr><tr><td>Google reCAPTCHA v3</td><td>Good for low-friction protection when scores are tuned</td><td>Invisible risk scoring based on user behavior and Google signals</td><td>Score tuning can produce false positives or false negatives; no visible proof for the merchant without monitoring</td><td>Requires Google data processing assessment, privacy notice updates, and consent/legal basis review</td><td>External service dependency; score thresholds need monitoring; may be less predictable on low-traffic shops</td></tr><tr><td>Cloudflare Turnstile</td><td>High for most form spam with low user friction</td><td>Managed challenge and browser/device attestation from Cloudflare</td><td>Depends on Cloudflare availability and risk engine; behavior can change as Cloudflare updates the service</td><td>Generally privacy-oriented compared with traditional tracking captcha, but still requires reviewing Cloudflare terms and data flows</td><td>External service dependency; merchant must keep provider keys and domains correctly configured</td></tr><tr><td>ALTCHA</td><td>Good against basic automated spam and bot submissions</td><td>Self-hosted proof-of-work challenge signed by the module</td><td>Less advanced against targeted attackers, human spam, and sophisticated browser automation</td><td>Strong privacy profile because the local challenge can run without third-party captcha calls</td><td>Protection depends on HMAC secret safety, challenge lifetime, and server-side verification; no managed threat intelligence</td></tr><tr><td>ALTCHA Sentinel</td><td>High when deployed and tuned correctly, especially for adaptive bot protection</td><td>Self-hosted Sentinel backend with adaptive captcha and threat detection</td><td>Requires infrastructure owned or managed by the merchant, such as VPS, Docker, storage, updates, monitoring, and backups</td><td>Strong data-residency profile because the protection stack can run on merchant-controlled infrastructure</td><td>Paid license plus infrastructure cost; public pricing references vary by plan, with Professional pricing reported from about EUR 99/month and Enterprise references around EUR 799/month or more; verify current ALTCHA pricing before deployment</td></tr></tbody></table>
+<h2>Implementation Notes</h2>
+<p>Tec Spam Guard does not use PrestaShop overrides. It does not replace core controllers, core classes, theme templates, or checkout templates.</p>
+<p>The module is implemented through standard PrestaShop extension points:</p>
+<ul>
+<li><code>displayHeader</code> loads the front-office JavaScript and captcha provider script only on pages that may contain protected forms.</li>
+<li><code>actionDispatcher</code> detects submitted native forms before the target front controller processes the request.</li>
+<li><code>actionContactFormSubmitBefore</code> and <code>actionSubmitAccountBefore</code> are used as native hook fallbacks where PrestaShop exposes them.</li>
+<li>A dedicated <code>altchachallenge</code> module front controller generates local ALTCHA challenges.</li>
+<li>Small form descriptor classes identify supported forms and read submitted values without coupling the validators to a specific controller implementation.</li>
+</ul>
+<p>The front-office script injects captcha widgets into visible supported forms and listens to checkout refresh events so the widget is reattached when PrestaShop updates checkout steps through AJAX. Server-side validation remains the source of truth: a form submission is rejected when the configured captcha, email, or message rule fails, regardless of client-side behavior.</p>
 
 </main>
 </body>

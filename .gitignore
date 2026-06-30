@@ -11,3 +11,4 @@ tmp/
 .DS_Store
 Thumbs.db
 /config/xml/
+/data/disposable_domains.backup.*.txt

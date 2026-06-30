@@ -3,7 +3,7 @@
 *
 * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
 * @copyright 2009-2026 Arte e Informatica
-* @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+* @license   MIT License
 *}
 
 <div class="panel">
@@ -44,5 +44,40 @@
             <i class="icon-list-alt"></i>
             {l s='Open changelog' mod='tec_spamguard'}
         </a>
+        <a
+            class="btn btn-default"
+            href="{$module_dir|escape:'html':'UTF-8'}data/disposable_domains.txt"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            <i class="icon-list"></i>
+            {l s='Open disposable email domain list' mod='tec_spamguard'}
+        </a>
+        <form
+            method="post"
+            action="{$disposable_domains_update_url|escape:'html':'UTF-8'}"
+            style="display:inline;"
+        >
+            <button
+                type="submit"
+                name="submitTecSpamGuardDisposableDomainsUpdate"
+                class="btn btn-default"
+            >
+                <i class="icon-refresh"></i>
+                {l s='Update disposable email domain list' mod='tec_spamguard'}
+            </button>
+        </form>
     </div>
+
+    <p class="help-block" style="margin-top:10px;">
+        {l s='Disposable email domain source' mod='tec_spamguard'}:
+        <code>{$disposable_domains_source_url|escape:'html':'UTF-8'}</code><br>
+        {l s='Local disposable email domains' mod='tec_spamguard'}:
+        {$disposable_domains_count|intval}<br>
+        {l s='Disposable email domain backups' mod='tec_spamguard'}:
+        {$disposable_domains_backup_count|intval} / {$disposable_domains_backup_limit|intval}
+    </p>
+    <p class="help-block">
+        {l s='Download and replace the local disposable email domain list from the configured public source. A timestamped backup is created before writing the new file.' mod='tec_spamguard'}
+    </p>
 </div>

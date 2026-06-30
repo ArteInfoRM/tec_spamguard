@@ -4,7 +4,7 @@
  *
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
- * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+ * @license   MIT License
  */
 header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
 header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');

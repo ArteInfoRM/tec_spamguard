@@ -4,7 +4,7 @@
  *
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
- * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+ * @license   MIT License
  */
 
 namespace TecSpamGuard\Validation;
@@ -15,11 +15,19 @@ if (!defined('_PS_VERSION_')) {
 
 class EmailValidator
 {
+    /**
+     * Parsed disposable domains by file path.
+     *
+     * @var array
+     */
+    private static $disposableDomainsCache = [];
+
     private $blockedEmails;
     private $blockedDomains;
     private $blockedPatterns;
     private $blockDisposable;
     private $disposableFile;
+    private $blockedDomainMap;
 
     public function __construct(array $blockedEmails, array $blockedDomains, array $blockedPatterns, $blockDisposable, $disposableFile)
     {
@@ -42,7 +50,7 @@ class EmailValidator
         }
 
         $domain = $this->getDomain($email);
-        if ($domain !== '' && in_array($domain, $this->getBlockedDomains(), true)) {
+        if ($domain !== '' && isset($this->getBlockedDomainMap()[$domain])) {
             return false;
         }
 
@@ -62,14 +70,51 @@ class EmailValidator
         return isset($parts[1]) ? \Tools::strtolower($parts[1]) : '';
     }
 
-    private function getBlockedDomains()
+    /**
+     * Return blocked domains as a lookup map.
+     *
+     * @return array
+     */
+    private function getBlockedDomainMap()
     {
-        $domains = $this->blockedDomains;
-        if ($this->blockDisposable && is_file($this->disposableFile)) {
-            $domains = array_merge($domains, $this->parseLines((string) \Tools::file_get_contents($this->disposableFile)));
+        if (is_array($this->blockedDomainMap)) {
+            return $this->blockedDomainMap;
         }
 
-        return array_values(array_unique(array_filter($domains)));
+        $domains = [];
+        foreach ($this->blockedDomains as $domain) {
+            $domain = \Tools::strtolower(trim((string) $domain));
+            if ($domain !== '') {
+                $domains[$domain] = true;
+            }
+        }
+
+        if ($this->blockDisposable && is_file($this->disposableFile)) {
+            foreach ($this->getDisposableDomains($this->disposableFile) as $domain) {
+                $domains[$domain] = true;
+            }
+        }
+
+        $this->blockedDomainMap = $domains;
+
+        return $this->blockedDomainMap;
+    }
+
+    /**
+     * Return parsed disposable domains for a file path.
+     *
+     * @param string $file Disposable domains file path
+     *
+     * @return array
+     */
+    private function getDisposableDomains($file)
+    {
+        $file = (string) $file;
+        if (!isset(self::$disposableDomainsCache[$file])) {
+            self::$disposableDomainsCache[$file] = $this->parseLines((string) \Tools::file_get_contents($file));
+        }
+
+        return self::$disposableDomainsCache[$file];
     }
 
     private function parseLines($content)

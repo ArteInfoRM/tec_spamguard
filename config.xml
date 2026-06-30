@@ -2,7 +2,7 @@
 <module>
     <name><![CDATA[tec_spamguard]]></name>
     <displayName><![CDATA[Tec Spam Guard]]></displayName>
-    <version><![CDATA[1.0.0]]></version>
+    <version><![CDATA[1.0.2]]></version>
     <description><![CDATA[Protect contact, registration, login, and password reset forms from spam.]]></description>
     <author><![CDATA[Tecnoacquisti.com]]></author>
     <tab><![CDATA[front_office_features]]></tab>

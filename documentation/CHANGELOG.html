@@ -116,6 +116,31 @@
 <h1>Changelog</h1>
 <p>All notable changes to this project will be documented in this file.</p>
 <hr>
+<h2>[1.0.2] - 2026-06-30</h2>
+<h3>Added</h3>
+<ul>
+<li>Added checkout support for guest checkout, checkout customer creation, and checkout login forms.</li>
+<li>Added a dedicated <code>Captcha during checkout</code> switch so merchants can decide whether Register and Login captcha settings also apply inside checkout.</li>
+<li>Added an optional <code>Skip captcha for logged-in customers</code> setting.</li>
+<li>Added a back-office button to update the local disposable email domain list from <code>https://disposable.github.io/disposable-email-domains/domains_mx.txt</code> with validation and timestamped backup.</li>
+<li>Added automatic cleanup for disposable email domain backups, keeping the 5 most recent files.</li>
+<li>Added configurable discouraged email domains with a non-blocking front-office warning popup.</li>
+<li>Added front-office handling for checkout AJAX refresh events so captcha widgets are reattached after checkout step updates.</li>
+<li>Added translations for English, Italian, Spanish, German, French, Portuguese, Polish, Romanian, and Dutch.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Changed module license to MIT.</li>
+<li>Kept captcha, email validation, and message validation independent: disabling or skipping captcha no longer disables email or message validation.</li>
+<li>Improved README documentation with checkout behavior, logged-in customer bypass, validation independence, and implementation notes.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Fixed local ALTCHA challenge responses returning an error HTTP status after checkout state changes.</li>
+<li>Fixed hidden checkout forms receiving captcha widgets.</li>
+<li>Fixed repeated captcha verification in the same request by caching validation results per form type.</li>
+<li>Fixed stale captcha notification messages when returning to the checkout personal information step after customer identity was already validated.</li>
+</ul>
 <h2>[1.0.0] - 2026-06-29</h2>
 <h3>Added</h3>
 <ul>

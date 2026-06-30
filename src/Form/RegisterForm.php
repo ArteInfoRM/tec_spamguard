@@ -4,7 +4,7 @@
  *
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
- * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+ * @license   MIT License
  */
 
 namespace TecSpamGuard\Form;
@@ -23,13 +23,16 @@ class RegisterForm extends AbstractForm
     public function isSubmitted()
     {
         if (version_compare(_PS_VERSION_, '8.0', '<')) {
-            return $this->context->controller instanceof \AuthController
+            return ($this->context->controller instanceof \AuthController
+                || $this->context->controller instanceof \OrderController)
                 && ($this->hasSubmit('submitCreate') || $this->hasSubmit('submitAccount'));
         }
 
-        return class_exists('RegistrationController')
+        return (class_exists('RegistrationController')
             && $this->context->controller instanceof \RegistrationController
-            && $this->hasSubmit('submitCreate');
+            && $this->hasSubmit('submitCreate'))
+            || ($this->context->controller instanceof \OrderController
+            && $this->hasSubmit('submitCreate'));
     }
 
     public function getEmail()

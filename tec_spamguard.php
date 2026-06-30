@@ -6,8 +6,8 @@
  *
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
- * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
- * @version   1.0.0
+ * @license   MIT License
+ * @version   1.0.2
  */
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
@@ -30,6 +30,16 @@ if (!defined('_PS_VERSION_')) {
 class Tec_spamguard extends Module
 {
     public const CONFIG_PREFIX = 'TEC_SPAMGUARD_';
+    public const DISPOSABLE_DOMAINS_SOURCE_URL = 'https://disposable.github.io/disposable-email-domains/domains_mx.txt';
+    public const DISPOSABLE_DOMAINS_BACKUP_LIMIT = 5;
+    public const DEFAULT_DISCOURAGED_EMAIL_DOMAINS = "libero.it\nvirgilio.it\ntiscali.it\ntin.it\nt-online.de\naol.com\ntim.it\naruba.it\noutlook.it\noutlook.com\nhotmail.com\nlive.it\nlive.com";
+
+    /**
+     * Captcha validation results for the current request.
+     *
+     * @var array
+     */
+    private $captchaValidationResults = [];
 
     /**
      * Module constructor.
@@ -38,7 +48,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.0';
+        $this->version = '1.0.2';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -98,12 +108,15 @@ class Tec_spamguard extends Module
         $this->context->controller->addCSS($this->_path . 'views/css/back.css');
 
         $output = '';
+        if (Tools::isSubmit('submitTecSpamGuardDisposableDomainsUpdate')) {
+            $output .= $this->postProcessDisposableDomainsUpdate();
+        }
         if (Tools::isSubmit('submitTecSpamGuardCaptchaService')) {
             $output .= $this->postProcessCaptchaServiceConfiguration();
         }
         if (Tools::isSubmit('submitTecSpamGuardCaptchaForms')) {
             $output .= $this->postProcessSwitchConfiguration([
-                'CONTACT_CAPTCHA', 'REGISTER_CAPTCHA', 'LOGIN_CAPTCHA', 'PASSWORD_CAPTCHA',
+                'CONTACT_CAPTCHA', 'REGISTER_CAPTCHA', 'LOGIN_CAPTCHA', 'CHECKOUT_CAPTCHA', 'SKIP_LOGGED_CUSTOMER_CAPTCHA', 'PASSWORD_CAPTCHA',
             ]);
         }
         if (Tools::isSubmit('submitTecSpamGuardEmailValidation')) {
@@ -127,17 +140,34 @@ class Tec_spamguard extends Module
     {
         unset($params);
 
-        if (!$this->isCurrentPageProtectable() || !$this->hasAnyCaptchaProtectedForm()) {
+        if (!$this->isCurrentPageProtectable()) {
             return '';
         }
 
-        $provider = $this->createCaptchaProvider();
-        if ($provider === null) {
+        $this->clearCheckoutCaptchaNotifications();
+
+        $forms = $this->getProtectedFormConfig();
+        $emailAdvisoryForms = $this->getEmailAdvisoryFormConfig();
+        if (empty($forms) && empty($emailAdvisoryForms)) {
             return '';
         }
 
-        $siteKey = $this->getCaptchaSiteKey();
-        if ($siteKey === '') {
+        $provider = null;
+        $siteKey = '';
+        if (!empty($forms)) {
+            $provider = $this->createCaptchaProvider();
+            if ($provider === null) {
+                $forms = [];
+            } else {
+                $siteKey = $this->getCaptchaSiteKey();
+                if ($siteKey === '') {
+                    $forms = [];
+                    $provider = null;
+                }
+            }
+        }
+
+        if (empty($forms) && empty($emailAdvisoryForms)) {
             return '';
         }
 
@@ -154,18 +184,25 @@ class Tec_spamguard extends Module
 
         Media::addJsDef([
             'tecSpamGuard' => [
-                'provider' => $provider->getId(),
+                'provider' => $provider instanceof CaptchaProviderInterface ? $provider->getId() : '',
                 'siteKey' => $siteKey,
-                'responseField' => $provider->getResponseFieldName(),
-                'widgetAttributes' => method_exists($provider, 'getWidgetAttributes') ? $provider->getWidgetAttributes() : [],
+                'responseField' => $provider instanceof CaptchaProviderInterface ? $provider->getResponseFieldName() : '',
+                'widgetAttributes' => $provider instanceof CaptchaProviderInterface && method_exists($provider, 'getWidgetAttributes') ? $provider->getWidgetAttributes() : [],
                 'recaptchaAction' => (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
-                'forms' => $this->getProtectedFormConfig(),
+                'forms' => $forms,
+                'emailAdvisoryForms' => $emailAdvisoryForms,
+                'emailAdvisoryDomains' => $this->getEmailAdvisoryDomains(),
+                'emailAdvisoryMessage' => $this->l('The email address you entered often has delivery problems. We recommend using another email address, preferably Gmail. Click Cancel to enter a different email address, or OK to continue with this one.'),
+                'emailAdvisoryMessages' => [
+                    'login' => $this->l('The email address used often has delivery problems. We recommend changing it, for example to a Gmail email address.'),
+                    'password' => $this->l('The email address you entered often has delivery problems. Check your spam folder or contact us with another email address, for example Gmail.'),
+                ],
             ],
         ]);
 
         $this->context->smarty->assign([
-            'tec_spamguard_script_url' => $this->getCaptchaScriptUrl($provider, $siteKey),
-            'tec_spamguard_is_module_script' => in_array($provider->getId(), ['altcha', 'altcha_sentinel'], true),
+            'tec_spamguard_script_url' => $provider instanceof CaptchaProviderInterface ? $this->getCaptchaScriptUrl($provider, $siteKey) : '',
+            'tec_spamguard_is_module_script' => $provider instanceof CaptchaProviderInterface && in_array($provider->getId(), ['altcha', 'altcha_sentinel'], true),
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/header.tpl');
@@ -181,6 +218,8 @@ class Tec_spamguard extends Module
     public function hookActionDispatcher($params)
     {
         unset($params);
+
+        $this->clearCheckoutCaptchaNotifications();
 
         $form = $this->getSubmittedForm();
         if ($form === null) {
@@ -482,6 +521,8 @@ class Tec_spamguard extends Module
             self::CONFIG_PREFIX . 'CONTACT_CAPTCHA' => 1,
             self::CONFIG_PREFIX . 'REGISTER_CAPTCHA' => 1,
             self::CONFIG_PREFIX . 'LOGIN_CAPTCHA' => 0,
+            self::CONFIG_PREFIX . 'CHECKOUT_CAPTCHA' => 1,
+            self::CONFIG_PREFIX . 'SKIP_LOGGED_CUSTOMER_CAPTCHA' => 0,
             self::CONFIG_PREFIX . 'PASSWORD_CAPTCHA' => 1,
             self::CONFIG_PREFIX . 'CONTACT_EMAIL' => 1,
             self::CONFIG_PREFIX . 'REGISTER_EMAIL' => 1,
@@ -492,6 +533,8 @@ class Tec_spamguard extends Module
             self::CONFIG_PREFIX . 'BLOCKED_EMAILS' => '',
             self::CONFIG_PREFIX . 'BLOCKED_DOMAINS' => '',
             self::CONFIG_PREFIX . 'BLOCKED_EMAIL_PATTERNS' => '',
+            self::CONFIG_PREFIX . 'DISCOURAGED_EMAIL_DOMAINS' => self::DEFAULT_DISCOURAGED_EMAIL_DOMAINS,
+            self::CONFIG_PREFIX . 'DISCOURAGED_EMAIL_WARNING' => 1,
             self::CONFIG_PREFIX . 'BLOCKED_MESSAGE_TEXTS' => "viagra\ncasino\nloan\ncrypto investment\nforex trading\nwork from home\nmake money online\nseo services\nguest post",
             self::CONFIG_PREFIX . 'MAX_MESSAGE_LINKS' => 3,
             self::CONFIG_PREFIX . 'RECAPTCHA_V2_SITEKEY' => '',
@@ -686,13 +729,13 @@ class Tec_spamguard extends Module
     private function postProcessEmailValidationConfiguration()
     {
         $result = $this->postProcessSwitchConfiguration([
-            'CONTACT_EMAIL', 'REGISTER_EMAIL', 'LOGIN_EMAIL', 'PASSWORD_EMAIL', 'BLOCK_DISPOSABLE',
+            'CONTACT_EMAIL', 'REGISTER_EMAIL', 'LOGIN_EMAIL', 'PASSWORD_EMAIL', 'BLOCK_DISPOSABLE', 'DISCOURAGED_EMAIL_WARNING',
         ]);
         if (strpos($result, 'alert-danger') !== false) {
             return $result;
         }
 
-        foreach (['BLOCKED_EMAILS', 'BLOCKED_DOMAINS', 'BLOCKED_EMAIL_PATTERNS'] as $field) {
+        foreach (['BLOCKED_EMAILS', 'BLOCKED_DOMAINS', 'BLOCKED_EMAIL_PATTERNS', 'DISCOURAGED_EMAIL_DOMAINS'] as $field) {
             $error = $this->validateEmailValidationTextarea($field, (string) Tools::getValue(self::CONFIG_PREFIX . $field));
             if ($error !== '') {
                 return $this->displayError($error);
@@ -705,6 +748,211 @@ class Tec_spamguard extends Module
         }
 
         return $result;
+    }
+
+    /**
+     * Download and replace the bundled disposable email domain list.
+     *
+     * @return string
+     */
+    private function postProcessDisposableDomainsUpdate()
+    {
+        $content = $this->downloadDisposableDomainsSource();
+        if ($content === '') {
+            return $this->displayError($this->l('Could not download disposable email domain list.'));
+        }
+
+        $domains = $this->parseDisposableDomainsContent($content);
+        if (count($domains) < 100) {
+            return $this->displayError($this->l('Downloaded disposable email domain list is invalid.'));
+        }
+
+        $file = $this->getDisposableDomainsFilePath();
+        $backup = $this->getDisposableDomainsBackupPath();
+        if (is_file($file) && !copy($file, $backup)) {
+            return $this->displayError($this->l('Could not create disposable email domain backup.'));
+        }
+
+        $updatedContent = '# Common disposable email domains.' . "\n"
+            . '# Source: ' . self::DISPOSABLE_DOMAINS_SOURCE_URL . "\n"
+            . '# Updated: ' . date('Y-m-d H:i:s') . "\n"
+            . implode("\n", $domains)
+            . "\n";
+
+        if (file_put_contents($file, $updatedContent, LOCK_EX) === false) {
+            return $this->displayError($this->l('Could not write disposable email domain list.'));
+        }
+        $this->cleanupDisposableDomainsBackups();
+
+        return $this->displayConfirmation(sprintf(
+            $this->l('Disposable email domain list updated. Domains: %d. Backup: %s'),
+            count($domains),
+            basename($backup)
+        ));
+    }
+
+    /**
+     * Download disposable domains from the fixed public source.
+     *
+     * @return string
+     */
+    private function downloadDisposableDomainsSource()
+    {
+        if (function_exists('curl_init')) {
+            $curl = curl_init(self::DISPOSABLE_DOMAINS_SOURCE_URL);
+            if ($curl === false) {
+                return '';
+            }
+
+            curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
+            curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+            curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 2);
+            curl_setopt($curl, CURLOPT_USERAGENT, $this->name . '/' . $this->version);
+
+            $content = curl_exec($curl);
+            $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            curl_close($curl);
+
+            if ($httpCode !== 200 || !is_string($content) || Tools::strlen($content) > 2000000) {
+                return '';
+            }
+
+            return $content;
+        }
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 30,
+                'header' => 'User-Agent: ' . $this->name . '/' . $this->version,
+            ],
+        ]);
+        $content = @file_get_contents(self::DISPOSABLE_DOMAINS_SOURCE_URL, false, $context);
+        if (!is_string($content) || Tools::strlen($content) > 2000000) {
+            return '';
+        }
+
+        return $content;
+    }
+
+    /**
+     * Normalize and validate a disposable domain list.
+     *
+     * @param string $content Downloaded content
+     *
+     * @return array
+     */
+    private function parseDisposableDomainsContent($content)
+    {
+        $domains = [];
+        foreach (preg_split('/\R/', (string) $content) as $line) {
+            $line = Tools::strtolower(trim((string) $line));
+            if ($line === '' || strpos($line, '#') === 0) {
+                continue;
+            }
+            if (!preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $line)) {
+                continue;
+            }
+
+            $domains[$line] = true;
+        }
+
+        $domains = array_keys($domains);
+        sort($domains, SORT_STRING);
+
+        return $domains;
+    }
+
+    /**
+     * Return disposable domains file path.
+     *
+     * @return string
+     */
+    private function getDisposableDomainsFilePath()
+    {
+        return dirname(__FILE__) . '/data/disposable_domains.txt';
+    }
+
+    /**
+     * Return a timestamped backup path for the disposable domains file.
+     *
+     * @return string
+     */
+    private function getDisposableDomainsBackupPath()
+    {
+        return dirname(__FILE__) . '/data/disposable_domains.backup.' . date('YmdHis') . '.txt';
+    }
+
+    /**
+     * Count local disposable domains.
+     *
+     * @return int
+     */
+    private function countLocalDisposableDomains()
+    {
+        $file = $this->getDisposableDomainsFilePath();
+        if (!is_file($file)) {
+            return 0;
+        }
+
+        return count($this->getLines((string) file_get_contents($file)));
+    }
+
+    /**
+     * Remove disposable domain backups above the retention limit.
+     *
+     * @return void
+     */
+    private function cleanupDisposableDomainsBackups()
+    {
+        $backups = $this->getDisposableDomainsBackups();
+        if (count($backups) <= self::DISPOSABLE_DOMAINS_BACKUP_LIMIT) {
+            return;
+        }
+
+        $backups = array_slice($backups, self::DISPOSABLE_DOMAINS_BACKUP_LIMIT);
+        foreach ($backups as $backup) {
+            if (is_file($backup)) {
+                @unlink($backup);
+            }
+        }
+    }
+
+    /**
+     * Return disposable domain backup files from newest to oldest.
+     *
+     * @return array
+     */
+    private function getDisposableDomainsBackups()
+    {
+        $files = glob(dirname(__FILE__) . '/data/disposable_domains.backup.*.txt');
+        if (!is_array($files)) {
+            return [];
+        }
+
+        $backups = [];
+        foreach ($files as $file) {
+            if (preg_match('/disposable_domains\.backup\.[0-9]{14}\.txt$/', (string) $file)) {
+                $backups[] = $file;
+            }
+        }
+
+        rsort($backups, SORT_STRING);
+
+        return $backups;
+    }
+
+    /**
+     * Count disposable domain backup files.
+     *
+     * @return int
+     */
+    private function countDisposableDomainsBackups()
+    {
+        return count($this->getDisposableDomainsBackups());
     }
 
     /**
@@ -751,6 +999,12 @@ class Tec_spamguard extends Module
             'module_display_name' => html_entity_decode($this->displayName, ENT_QUOTES, 'UTF-8'),
             'module_version' => $this->version,
             'readme_html_file' => $this->getBackOfficeReadmeHtmlFile(),
+            'disposable_domains_update_url' => AdminController::$currentIndex . '&configure=' . $this->name
+                . '&token=' . Tools::getAdminTokenLite('AdminModules'),
+            'disposable_domains_source_url' => self::DISPOSABLE_DOMAINS_SOURCE_URL,
+            'disposable_domains_count' => $this->countLocalDisposableDomains(),
+            'disposable_domains_backup_count' => $this->countDisposableDomainsBackups(),
+            'disposable_domains_backup_limit' => self::DISPOSABLE_DOMAINS_BACKUP_LIMIT,
             'is_ps9' => version_compare(_PS_VERSION_, '9.0.0', '>='),
         ]);
 
@@ -983,6 +1237,22 @@ class Tec_spamguard extends Module
                     ['type' => 'switch', 'label' => $this->l('Captcha on contact form'), 'name' => self::CONFIG_PREFIX . 'CONTACT_CAPTCHA', 'is_bool' => true, 'values' => $this->getSwitchValues()],
                     ['type' => 'switch', 'label' => $this->l('Captcha on registration form'), 'name' => self::CONFIG_PREFIX . 'REGISTER_CAPTCHA', 'is_bool' => true, 'values' => $this->getSwitchValues()],
                     ['type' => 'switch', 'label' => $this->l('Captcha on login form'), 'name' => self::CONFIG_PREFIX . 'LOGIN_CAPTCHA', 'is_bool' => true, 'values' => $this->getSwitchValues()],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Captcha during checkout'),
+                        'name' => self::CONFIG_PREFIX . 'CHECKOUT_CAPTCHA',
+                        'is_bool' => true,
+                        'desc' => $this->l('When enabled, checkout registration and login forms follow their captcha settings.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Skip captcha for logged-in customers'),
+                        'name' => self::CONFIG_PREFIX . 'SKIP_LOGGED_CUSTOMER_CAPTCHA',
+                        'is_bool' => true,
+                        'desc' => $this->l('When enabled, logged-in customers are not asked to solve captcha challenges.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
                     ['type' => 'switch', 'label' => $this->l('Captcha on password reset form'), 'name' => self::CONFIG_PREFIX . 'PASSWORD_CAPTCHA', 'is_bool' => true, 'values' => $this->getSwitchValues()],
                 ],
                 'submit' => ['title' => $this->l('Save captcha activation')],
@@ -1009,6 +1279,8 @@ class Tec_spamguard extends Module
                     ['type' => 'textarea', 'label' => $this->l('Blocked email addresses'), 'name' => self::CONFIG_PREFIX . 'BLOCKED_EMAILS', 'desc' => $this->l('One email address per line.')],
                     ['type' => 'textarea', 'label' => $this->l('Blocked email domains'), 'name' => self::CONFIG_PREFIX . 'BLOCKED_DOMAINS', 'desc' => $this->l('One domain per line, without @.')],
                     ['type' => 'textarea', 'label' => $this->l('Blocked email patterns'), 'name' => self::CONFIG_PREFIX . 'BLOCKED_EMAIL_PATTERNS', 'desc' => $this->l('One wildcard pattern per line, for example *@example.com.')],
+                    ['type' => 'textarea', 'label' => $this->l('Discouraged email domains'), 'name' => self::CONFIG_PREFIX . 'DISCOURAGED_EMAIL_DOMAINS', 'desc' => $this->l('One domain per line. Customers can continue after confirming the warning.')],
+                    ['type' => 'switch', 'label' => $this->l('Show warning for discouraged email domains'), 'name' => self::CONFIG_PREFIX . 'DISCOURAGED_EMAIL_WARNING', 'is_bool' => true, 'desc' => $this->l('When enabled, customers see a confirmation warning when they use one of the discouraged email domains.'), 'values' => $this->getSwitchValues()],
                 ],
                 'submit' => ['title' => $this->l('Save email validation')],
             ],
@@ -1043,8 +1315,9 @@ class Tec_spamguard extends Module
     private function getConfigurationValues()
     {
         $values = [];
-        foreach (array_keys($this->getDefaultConfiguration()) as $key) {
-            $values[$key] = Configuration::get($key);
+        foreach ($this->getDefaultConfiguration() as $key => $defaultValue) {
+            $value = Configuration::get($key);
+            $values[$key] = $value === false ? $defaultValue : $value;
         }
         foreach (['RECAPTCHA_V2_SECRET', 'RECAPTCHA_V3_SECRET', 'TURNSTILE_SECRET', 'ALTCHA_SECRET', 'ALTCHA_SENTINEL_API_KEY'] as $field) {
             $key = self::CONFIG_PREFIX . $field;
@@ -1102,8 +1375,8 @@ class Tec_spamguard extends Module
      */
     private function validateSubmittedForm(FormInterface $form)
     {
-        if ($this->isFormCaptchaEnabled($form->getType())) {
-            $error = $this->validateCaptcha();
+        if ($this->isFormCaptchaEnabled($form->getType()) && $this->shouldProtectFormInCurrentContext($form->getType())) {
+            $error = $this->validateCaptcha($form->getType());
             if ($error !== '') {
                 return $error;
             }
@@ -1118,7 +1391,7 @@ class Tec_spamguard extends Module
                 dirname(__FILE__) . '/data/disposable_domains.txt'
             );
             if (!$validator->isAllowed($form->getEmail())) {
-                return $this->l('Please use another email address.');
+                return $this->getEmailValidationErrorMessage($form->getType());
             }
         }
 
@@ -1136,22 +1409,50 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Return the email validation error message for a form type.
+     *
+     * @param string $type Form type
+     *
+     * @return string
+     */
+    private function getEmailValidationErrorMessage($type)
+    {
+        switch ((string) $type) {
+            case 'login':
+                return $this->l('This email address cannot be used to sign in. Please use another email address.');
+            case 'password':
+                return $this->l('This email address cannot be used to reset a password. Please use another email address.');
+        }
+
+        return $this->l('Email is not allowed. Please use another email address.');
+    }
+
+    /**
      * Validate captcha token with the configured provider.
      *
      * @return string Error message or empty string
      */
-    private function validateCaptcha()
+    private function validateCaptcha($formType)
     {
+        $formType = (string) $formType;
+        if (isset($this->captchaValidationResults[$formType])) {
+            return $this->captchaValidationResults[$formType];
+        }
+
         $provider = $this->createCaptchaProvider();
         if ($provider === null) {
+            $this->captchaValidationResults[$formType] = '';
+
             return '';
         }
 
         $secret = $this->getCaptchaSecret();
         $token = (string) Tools::getValue($provider->getResponseFieldName());
         $result = $provider->verify($token, $secret, Tools::getRemoteAddr());
+        $error = !empty($result['success']) ? '' : $this->l('Please validate the captcha before submitting your request.');
+        $this->captchaValidationResults[$formType] = $error;
 
-        return !empty($result['success']) ? '' : $this->l('Please validate the captcha before submitting your request.');
+        return $error;
     }
 
     /**
@@ -1186,6 +1487,10 @@ class Tec_spamguard extends Module
         $ssl = (bool) Configuration::get('PS_SSL_ENABLED')
             || (bool) Configuration::get('PS_SSL_ENABLED_EVERYWHERE');
 
+        if (($formType === 'register' || $formType === 'login') && $this->isCurrentControllerOrder()) {
+            return $this->context->link->getPageLink('order', $ssl);
+        }
+
         switch ((string) $formType) {
             case 'contact':
                 return $this->context->link->getPageLink('contact', $ssl);
@@ -1212,23 +1517,172 @@ class Tec_spamguard extends Module
         return $controller instanceof ContactController
             || $controller instanceof AuthController
             || $controller instanceof PasswordController
+            || $this->isCurrentControllerOrder()
             || (class_exists('RegistrationController') && $controller instanceof RegistrationController);
     }
 
     /**
-     * Check if at least one captcha protected form is enabled.
+     * Check if the current front controller is the checkout order controller.
      *
      * @return bool
      */
-    private function hasAnyCaptchaProtectedForm()
+    private function isCurrentControllerOrder()
     {
-        foreach (['CONTACT', 'REGISTER', 'LOGIN', 'PASSWORD'] as $form) {
-            if ((int) Configuration::get(self::CONFIG_PREFIX . $form . '_CAPTCHA') === 1) {
-                return true;
-            }
+        return $this->context->controller instanceof OrderController;
+    }
+
+    /**
+     * Check if the current customer is already attached to the active cart.
+     *
+     * @return bool
+     */
+    private function isCurrentCartCustomerIdentified()
+    {
+        if (!isset($this->context->customer, $this->context->cart)
+            || (int) $this->context->customer->id <= 0
+            || (int) $this->context->cart->id <= 0) {
+            return false;
         }
 
-        return false;
+        return (int) $this->context->cart->id_customer === (int) $this->context->customer->id;
+    }
+
+    /**
+     * Check if a form must be protected in the current front-office context.
+     *
+     * @param string $type Form type
+     *
+     * @return bool
+     */
+    private function shouldProtectFormInCurrentContext($type)
+    {
+        if ($this->isLoggedCustomerCaptchaSkipped()) {
+            return false;
+        }
+
+        if ($this->isCurrentControllerOrder()
+            && in_array((string) $type, ['register', 'login'], true)
+            && !$this->isCheckoutCaptchaEnabled()) {
+            return false;
+        }
+
+        if (!$this->isCurrentCartCustomerIdentified()) {
+            return true;
+        }
+
+        return !in_array((string) $type, ['register', 'login'], true);
+    }
+
+    /**
+     * Clear stale captcha errors once checkout identity is already validated.
+     *
+     * @return void
+     */
+    private function clearCheckoutCaptchaNotifications()
+    {
+        if (!$this->isCurrentControllerOrder()
+            || $this->shouldProtectFormInCurrentContext('register')
+            || $this->shouldProtectFormInCurrentContext('login')) {
+            return;
+        }
+
+        $captchaError = $this->l('Please validate the captcha before submitting your request.');
+
+        if (isset($this->context->controller->errors) && is_array($this->context->controller->errors)) {
+            $this->context->controller->errors = $this->filterCaptchaNotificationList(
+                $this->context->controller->errors,
+                $captchaError
+            );
+        }
+
+        $this->clearSessionCaptchaNotifications($captchaError);
+        $this->clearCookieCaptchaNotifications($captchaError);
+    }
+
+    /**
+     * Remove captcha errors from the current PHP session.
+     *
+     * @param string $captchaError Captcha validation message
+     *
+     * @return void
+     */
+    private function clearSessionCaptchaNotifications($captchaError)
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['notifications'])) {
+            return;
+        }
+
+        $notifications = json_decode((string) $_SESSION['notifications'], true);
+        if (!is_array($notifications)) {
+            return;
+        }
+
+        $notifications = $this->filterCaptchaNotifications($notifications, $captchaError);
+        $_SESSION['notifications'] = json_encode($notifications);
+    }
+
+    /**
+     * Remove captcha errors from the temporary notification cookie.
+     *
+     * @param string $captchaError Captcha validation message
+     *
+     * @return void
+     */
+    private function clearCookieCaptchaNotifications($captchaError)
+    {
+        if (empty($_COOKIE['notifications'])) {
+            return;
+        }
+
+        $notifications = json_decode((string) $_COOKIE['notifications'], true);
+        if (!is_array($notifications)) {
+            return;
+        }
+
+        $notifications = $this->filterCaptchaNotifications($notifications, $captchaError);
+        $encodedNotifications = json_encode($notifications);
+
+        $_COOKIE['notifications'] = $encodedNotifications;
+        setcookie('notifications', $encodedNotifications);
+    }
+
+    /**
+     * Remove captcha errors from a PrestaShop notification payload.
+     *
+     * @param array $notifications Notification payload
+     * @param string $captchaError Captcha validation message
+     *
+     * @return array
+     */
+    private function filterCaptchaNotifications(array $notifications, $captchaError)
+    {
+        if (isset($notifications['error']) && is_array($notifications['error'])) {
+            $notifications['error'] = $this->filterCaptchaNotificationList(
+                $notifications['error'],
+                $captchaError
+            );
+        }
+
+        return $notifications;
+    }
+
+    /**
+     * Remove captcha errors from a notification list.
+     *
+     * @param array $notifications Notification list
+     * @param string $captchaError Captcha validation message
+     *
+     * @return array
+     */
+    private function filterCaptchaNotificationList(array $notifications, $captchaError)
+    {
+        return array_values(array_filter($notifications, function ($notification) use ($captchaError) {
+            return trim((string) $notification) !== $captchaError;
+        }));
     }
 
     /**
@@ -1241,20 +1695,75 @@ class Tec_spamguard extends Module
         $forms = [];
         $controller = $this->context->controller;
 
-        if ($controller instanceof ContactController && $this->isFormCaptchaEnabled('contact')) {
+        if ($controller instanceof ContactController && $this->isFormCaptchaEnabled('contact') && $this->shouldProtectFormInCurrentContext('contact')) {
             $forms['contact'] = true;
         }
         if ($controller instanceof PasswordController && $this->isFormCaptchaEnabled('password')) {
             $forms['password'] = true;
         }
-        if (class_exists('RegistrationController') && $controller instanceof RegistrationController && $this->isFormCaptchaEnabled('register')) {
+        if (class_exists('RegistrationController') && $controller instanceof RegistrationController && $this->isFormCaptchaEnabled('register') && $this->shouldProtectFormInCurrentContext('register')) {
             $forms['register'] = true;
         }
-        if ($controller instanceof AuthController) {
-            if ($this->isFormCaptchaEnabled('register')) {
+        if ($this->isCurrentControllerOrder()) {
+            if ($this->isFormCaptchaEnabled('register') && $this->shouldProtectFormInCurrentContext('register')) {
                 $forms['register'] = true;
             }
-            if ($this->isFormCaptchaEnabled('login')) {
+            if ($this->isFormCaptchaEnabled('login') && $this->shouldProtectFormInCurrentContext('login')) {
+                $forms['login'] = true;
+            }
+        }
+        if ($controller instanceof AuthController) {
+            if ($this->isFormCaptchaEnabled('register') && $this->shouldProtectFormInCurrentContext('register')) {
+                $forms['register'] = true;
+            }
+            if ($this->isFormCaptchaEnabled('login') && $this->shouldProtectFormInCurrentContext('login')) {
+                $forms['login'] = true;
+            }
+        }
+
+        return $forms;
+    }
+
+    /**
+     * Return front JS config for forms with advisory email domains.
+     *
+     * @return array
+     */
+    private function getEmailAdvisoryFormConfig()
+    {
+        if (!$this->isEmailAdvisoryEnabled()) {
+            return [];
+        }
+
+        if (empty($this->getEmailAdvisoryDomains())) {
+            return [];
+        }
+
+        $forms = [];
+        $controller = $this->context->controller;
+
+        if ($controller instanceof ContactController && $this->isFormEmailValidationEnabled('contact')) {
+            $forms['contact'] = true;
+        }
+        if ($controller instanceof PasswordController && $this->isFormEmailValidationEnabled('password')) {
+            $forms['password'] = true;
+        }
+        if (class_exists('RegistrationController') && $controller instanceof RegistrationController && $this->isFormEmailValidationEnabled('register')) {
+            $forms['register'] = true;
+        }
+        if ($this->isCurrentControllerOrder()) {
+            if ($this->isFormEmailValidationEnabled('register')) {
+                $forms['register'] = true;
+            }
+            if ($this->isFormEmailValidationEnabled('login')) {
+                $forms['login'] = true;
+            }
+        }
+        if ($controller instanceof AuthController) {
+            if ($this->isFormEmailValidationEnabled('register')) {
+                $forms['register'] = true;
+            }
+            if ($this->isFormEmailValidationEnabled('login')) {
                 $forms['login'] = true;
             }
         }
@@ -1275,6 +1784,38 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Check if captcha is allowed on checkout identity forms.
+     *
+     * @return bool
+     */
+    private function isCheckoutCaptchaEnabled()
+    {
+        $value = Configuration::get(self::CONFIG_PREFIX . 'CHECKOUT_CAPTCHA');
+        if ($value === false) {
+            return true;
+        }
+
+        return (int) $value === 1;
+    }
+
+    /**
+     * Check if captcha should be skipped for the logged-in customer.
+     *
+     * @return bool
+     */
+    private function isLoggedCustomerCaptchaSkipped()
+    {
+        if ((int) Configuration::get(self::CONFIG_PREFIX . 'SKIP_LOGGED_CUSTOMER_CAPTCHA') !== 1) {
+            return false;
+        }
+
+        return isset($this->context->customer)
+            && (int) $this->context->customer->id > 0
+            && method_exists($this->context->customer, 'isLogged')
+            && $this->context->customer->isLogged();
+    }
+
+    /**
      * Check if email validation is enabled for a form.
      *
      * @param string $type Form type
@@ -1284,6 +1825,36 @@ class Tec_spamguard extends Module
     private function isFormEmailValidationEnabled($type)
     {
         return (int) Configuration::get(self::CONFIG_PREFIX . strtoupper((string) $type) . '_EMAIL') === 1;
+    }
+
+    /**
+     * Check if discouraged email domain warnings are enabled.
+     *
+     * @return bool
+     */
+    private function isEmailAdvisoryEnabled()
+    {
+        $value = Configuration::get(self::CONFIG_PREFIX . 'DISCOURAGED_EMAIL_WARNING');
+        if ($value === false) {
+            return true;
+        }
+
+        return (int) $value === 1;
+    }
+
+    /**
+     * Return discouraged email domains.
+     *
+     * @return array
+     */
+    private function getEmailAdvisoryDomains()
+    {
+        $domains = Configuration::get(self::CONFIG_PREFIX . 'DISCOURAGED_EMAIL_DOMAINS');
+        if ($domains === false) {
+            $domains = self::DEFAULT_DISCOURAGED_EMAIL_DOMAINS;
+        }
+
+        return $this->getLines((string) $domains);
     }
 
     /**
@@ -1470,6 +2041,10 @@ class Tec_spamguard extends Module
 
             if ($field === 'BLOCKED_DOMAINS' && !preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $line)) {
                 return $this->l('Blocked domain entries must be valid domain names.');
+            }
+
+            if ($field === 'DISCOURAGED_EMAIL_DOMAINS' && !preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $line)) {
+                return $this->l('Discouraged domain entries must be valid domain names.');
             }
 
             if ($field === 'BLOCKED_EMAIL_PATTERNS' && !preg_match('/^[a-z0-9._%+\-*?@-]+$/', $line)) {

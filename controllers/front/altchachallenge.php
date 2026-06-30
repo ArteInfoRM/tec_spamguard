@@ -6,7 +6,7 @@
  *
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
- * @license   One Paid Licence By WebSite Using This Module. No Rent. No Sell. No Share.
+ * @license   MIT License
  */
 if (!defined('_PS_VERSION_')) {
     exit;
@@ -25,6 +25,7 @@ class Tec_SpamguardaltchachallengeModuleFrontController extends ModuleFrontContr
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, no-cache, must-revalidate');
         header('X-Robots-Tag: noindex, nofollow', true);
+        http_response_code(200);
 
         $module = Module::getInstanceByName('tec_spamguard');
         if (!$module instanceof Tec_spamguard || !$module->isLocalAltchaActive()) {

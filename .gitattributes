@@ -16,3 +16,4 @@
 /phpunit.xml.dist export-ignore
 /config*.xml export-ignore
 /dist/ export-ignore
+/data/disposable_domains.backup.*.txt export-ignore
