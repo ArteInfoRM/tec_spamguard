@@ -1,7 +1,7 @@
 <?php
 
 global $_MODULE;
-$_MODULE = array();
+$_MODULE = [];
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_63ef1011260730b1e4d525a369498069'] = 'Tec Spam Guard';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_13e65a90581f7c4848e6d1a0affc2a3e'] = 'Protect contact, registration, login, and password reset forms from spam with captcha, email, and message validation.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_91eb050b76ce91603bb8af064416a4bb'] = 'Select a captcha provider before testing.';

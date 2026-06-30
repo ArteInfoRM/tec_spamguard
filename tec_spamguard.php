@@ -1588,7 +1588,7 @@ class Tec_spamguard extends Module
 
         $captchaError = $this->l('Please validate the captcha before submitting your request.');
 
-        if (isset($this->context->controller->errors) && is_array($this->context->controller->errors)) {
+        if (isset($this->context->controller->errors)) {
             $this->context->controller->errors = $this->filterCaptchaNotificationList(
                 $this->context->controller->errors,
                 $captchaError
