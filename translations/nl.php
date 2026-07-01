@@ -4,6 +4,7 @@ global $_MODULE;
 $_MODULE = [];
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_63ef1011260730b1e4d525a369498069'] = 'Tec Spam Guard';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_13e65a90581f7c4848e6d1a0affc2a3e'] = 'Beschermt contact-, registratie-, login- en wachtwoordherstelformulieren tegen spam met captcha, e-mailvalidatie en berichtvalidatie.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_ae827781d784fa960641d722fce97bd0'] = 'Deze site wordt beschermd door reCAPTCHA.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_91eb050b76ce91603bb8af064416a4bb'] = 'Selecteer een captcha-provider voordat u test.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_f157fce79a2bad19612f05385e0b8ae3'] = 'Sitesleutel en geheime sleutel moeten beide zijn ingesteld.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_ed4a3590a485536243287a720f8afce0'] = 'Het ALTCHA HMAC-geheim moet zijn ingesteld.';
@@ -12,6 +13,7 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_e7f13319940a781470fcea37ea067
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b3181af321a15ea2ef7b4e6044805aaf'] = 'Ongeldige captcha-provider.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_aaf7dd02238d13acf4821ea2943d5fd0'] = 'Ongeldige schakelaarwaarde.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_2136892cc9e7dbb046882e47ee1defac'] = 'De minimale score voor reCAPTCHA v3 moet tussen 0 en 1 liggen.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_28b59111a96b17dea9e4e9163d7cc059'] = 'Ongeldige reCAPTCHA v3-fallbackprovider.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3169dd5344e61eb5809ca0bd2a9579d0'] = 'De ALTCHA-moeilijkheid moet tussen 1 en 3 liggen.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3ea64904e9c7355867b6286a6aed0ae4'] = 'De levensduur van de ALTCHA-uitdaging moet tussen 60 en 3600 seconden liggen.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_53ddbf8f2a590e19ee262ec8f8b87bfd'] = 'De ALTCHA Sentinel-URL moet een geldige absolute URL zijn.';
@@ -42,6 +44,10 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_8ac4af5345e5905fcaf2ada08bb20
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3962d66c066dd13d9acdf4dbe31fe5ac'] = 'reCAPTCHA v3 geheime sleutel';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_f77c1fb2429a6541f2f10b3ab4e735a9'] = 'reCAPTCHA v3 actie';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_c819c98b19e3091f54d588c6ce737536'] = 'reCAPTCHA v3 minimale score';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_06195f1b82aada9d6863b2751dfa176d'] = 'reCAPTCHA v3-fallbackprovider';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_c9a46e84d29e50d9fa085d32ccf04aeb'] = 'Selecteer de zichtbare captcha die wordt weergegeven wanneer de reCAPTCHA v3-score te laag is.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_cfc90bfca38dd3470846c60e77b28940'] = 'Uitgeschakeld: fallbackmethoden zijn niet beschikbaar';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_c1f3654e43233dccdd6774549d768928'] = 'Uitgeschakeld: selecteer een fallbackmethode';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_a11c634c875cf729f71fc59b3b947119'] = 'Turnstile sitesleutel';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_5db8e300e2711010a763d07212892530'] = 'Turnstile geheime sleutel';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_8fe20abcf2beb0ab856a2e1bb9edac77'] = 'ALTCHA HMAC-geheim';
@@ -85,7 +91,6 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_76e3ca25c1341fbaf0a317274c5c1
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_a2b5b4fd9ebbb47196bf510a23371e93'] = 'Een woord of zin per regel.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3edcca0ff9aeb69bdb225518a9afeb9e'] = 'Maximaal aantal links in bericht';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_d17edacc2e4e795f9f2665c00b6c5821'] = 'Berichtvalidatie opslaan';
-$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_da56b3867741c58096e1b788bb5abade'] = 'Gebruik een ander e-mailadres.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_0216c03839d5f20aebaf383df654e659'] = 'E-mail niet toegestaan, gebruik een ander e-mailadres.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_5f13d9d729aedd52e7017bd21a1a1991'] = 'Dit e-mailadres kan niet worden gebruikt om in te loggen. Gebruik een ander e-mailadres.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_f0eac3aa7044f8f826b5ebe71d08b734'] = 'Dit e-mailadres kan niet worden gebruikt om een wachtwoord opnieuw in te stellen. Gebruik een ander e-mailadres.';
@@ -94,6 +99,8 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_bd153aadeef92abd907753ca593db
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_e47d12b6cbe32bff90452aa7cc021259'] = 'Het gebruikte e-mailadres heeft vaak bezorgproblemen. Wij raden aan dit te wijzigen, bijvoorbeeld naar een Gmail-adres.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_aa11a7bdeff3b74c0898276489da5a70'] = 'Gebruik een ander bericht.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_9b18cba61a67b923b7148e46c7020bc5'] = 'Valideer de captcha voordat u uw verzoek verzendt.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3c61d2ae33688bd0ad22e516d19b6b1f'] = 'De antispamcontrole is mislukt. Probeer het over een paar minuten opnieuw of neem op een andere manier contact met ons op.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b1b0fbe43887f693ab4ca99557002903'] = 'Voltooi de aanvullende antispamcontrole voordat u uw verzoek verzendt.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_6b3d8a6e1407dd2c57aa7eb37fd23b73'] = 'De e-mailvalidatielijst is te lang.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_def4e364f66b95c010df092c6f30cfa5'] = 'E-mailvalidatie-items moeten korter zijn dan 255 tekens.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_5fc71d332ef4bb27eeb35aef27b3dd5e'] = 'Geblokkeerde e-mailitems moeten geldige e-mailadressen zijn.';
@@ -132,3 +139,12 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_56d65e04667873d92af46dc91d847
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_4e0f05642f76421c6efb95d7c70b03e6'] = 'De gedownloade lijst met wegwerp-e-maildomeinen is ongeldig.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_e0cd75cc75fbca929560b07e1339865e'] = 'Kan geen back-up van wegwerp-e-maildomeinen maken.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_d4025d35c1b7a04757b9b37244c7ba1c'] = 'Kan de lijst met wegwerp-e-maildomeinen niet schrijven.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_39611d6104256b9288007c27659babbe'] = 'Ik ben geen robot';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3f68e67dc6c397aaa9d1c24c356f754f'] = 'Geverifieerd';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_1384e50552b2bb71950538e7e3d672ae'] = 'Bezig met verifiëren...';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_add8fd8c7ef8e762cf266066a1016b9c'] = 'Verificatie mislukt. Probeer het later opnieuw.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_d49c44834b16d7aeec17129a8499b923'] = 'Verificatie verlopen. Probeer het opnieuw.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_8524de963f07201e5c086830d370797f'] = 'Laden...';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_9052b69e5dc301ccc08d690df66cfb7f'] = 'Verificatie vereist!';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_59cfce439d1b04f0d4e00fbb32e89baf'] = 'Bezig met verifiëren... even geduld.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_a5dbd95641637b7523591d60552384ea'] = 'Beschermd door Tec Spam Guard';

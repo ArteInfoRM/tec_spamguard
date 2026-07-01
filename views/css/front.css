@@ -11,8 +11,77 @@
     width: 100%;
 }
 
+.tec-spamguard-altcha-frame {
+    align-items: center;
+    background: #f8f8f8;
+    border: 2px solid #cccccc;
+    border-radius: 6px;
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 390px;
+    padding: 10px 12px;
+    width: 100%;
+}
+
+.tec-spamguard-altcha-frame > altcha-widget {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tec-spamguard-altcha-local altcha-widget {
+    --altcha-border-color: transparent;
+    --altcha-border-width: 0;
+    --altcha-checkbox-border-color: #111;
+    --altcha-checkbox-border-width: 2px;
+    --altcha-checkbox-size: 24px;
+    --altcha-color-base: transparent;
+    --altcha-padding: 0;
+}
+
+.tec-spamguard-altcha-local-logo {
+    flex: 0 0 auto;
+    height: 64px;
+    object-fit: contain;
+    width: 64px;
+}
+
 .tec-spamguard-widget .altcha,
 .tec-spamguard-widget .altcha-main {
     margin-left: auto;
     margin-right: auto;
+}
+
+.tec-spamguard-recaptcha-notice {
+    color: #666;
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 0;
+    max-width: 100%;
+}
+
+.tec-spamguard-fallback-message {
+    color: #555;
+    font-size: 13px;
+    line-height: 1.4;
+    margin: 12px 0 6px;
+    text-align: center;
+}
+
+body.tec-spamguard-recaptcha-v3 .grecaptcha-badge {
+    visibility: hidden;
+}
+
+@media (max-width: 420px) {
+    .tec-spamguard-altcha-frame {
+        gap: 8px;
+        max-width: 100%;
+    }
+
+    .tec-spamguard-altcha-local-logo {
+        height: 64px;
+        width: 64px;
+    }
 }

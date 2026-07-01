@@ -2,7 +2,7 @@
 <module>
     <name>tec_spamguard</name>
     <displayName><![CDATA[Tec Spam Guard]]></displayName>
-    <version><![CDATA[1.0.2]]></version>
+    <version><![CDATA[1.0.3]]></version>
     <description><![CDATA[Protegge i moduli di contatto, registrazione, accesso e recupero password dallo spam con captcha, validazione email e controllo dei messaggi.]]></description>
     <author><![CDATA[Tecnoacquisti.com]]></author>
     <tab><![CDATA[front_office_features]]></tab>

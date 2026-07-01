@@ -128,16 +128,16 @@ class AltchaSentinelProvider extends AltchaProvider
         }
 
         $data = json_decode($response, true);
-        if (!is_array($data) || empty($data['challenge'])) {
+        if (!is_array($data)) {
             return [
                 'success' => false,
-                'message' => 'ALTCHA Sentinel returned an invalid challenge response.',
+                'message' => 'ALTCHA Sentinel returned a malformed challenge response.',
             ];
         }
 
         return [
             'success' => true,
-            'message' => 'ALTCHA Sentinel configuration appears to be valid.',
+            'message' => 'ALTCHA Sentinel challenge endpoint appears to be reachable.',
         ];
     }
 }

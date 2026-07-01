@@ -2,6 +2,26 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.0.3] - 2026-07-01
+### Added
+- Added an AJAX pre-check fallback flow for reCAPTCHA v3 so a visible configured captcha can be shown when the v3 score is too low.
+- Added a visible reCAPTCHA protection notice next to forms protected by invisible reCAPTCHA v3.
+- Added README FAQ examples for privacy policy and cookie policy wording for each supported captcha provider.
+- Added README FAQ explaining that reCAPTCHA v3 cannot be forced to show the checkbox.
+- Added localized ALTCHA and ALTCHA Sentinel widget labels and visible status messages.
+
+### Changed
+- Hid the fixed Google reCAPTCHA v3 badge when the module renders its visible reCAPTCHA protection notice next to protected forms.
+- Changed the reCAPTCHA v3 front-office error message so it no longer asks customers to validate an invisible captcha manually.
+- Styled the local ALTCHA widget with a light boxed layout, `#cccccc` outer border, stronger black checkbox border, and the module logo inside the challenge box at `64x64` pixels.
+- Added translated alternative text to the local ALTCHA module logo.
+
+### Fixed
+- Fixed ALTCHA and ALTCHA Sentinel fallback submissions after a solved fallback challenge.
+- Fixed reCAPTCHA v3 first-submit handling so protected forms keep their submit button data after the token is generated.
+- Fixed missing front-office error notification after a blocked captcha submission redirects back to the protected form.
+- Fixed ALTCHA Sentinel API key tests so they use the configured Sentinel URL and API key consistently.
+
 ## [1.0.2] - 2026-06-30
 ### Added
 - Added checkout support for guest checkout, checkout customer creation, and checkout login forms.

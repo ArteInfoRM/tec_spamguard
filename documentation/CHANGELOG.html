@@ -116,6 +116,29 @@
 <h1>Changelog</h1>
 <p>All notable changes to this project will be documented in this file.</p>
 <hr>
+<h2>[1.0.3] - 2026-07-01</h2>
+<h3>Added</h3>
+<ul>
+<li>Added an AJAX pre-check fallback flow for reCAPTCHA v3 so a visible configured captcha can be shown when the v3 score is too low.</li>
+<li>Added a visible reCAPTCHA protection notice next to forms protected by invisible reCAPTCHA v3.</li>
+<li>Added README FAQ examples for privacy policy and cookie policy wording for each supported captcha provider.</li>
+<li>Added README FAQ explaining that reCAPTCHA v3 cannot be forced to show the checkbox.</li>
+<li>Added localized ALTCHA and ALTCHA Sentinel widget labels and visible status messages.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Hid the fixed Google reCAPTCHA v3 badge when the module renders its visible reCAPTCHA protection notice next to protected forms.</li>
+<li>Changed the reCAPTCHA v3 front-office error message so it no longer asks customers to validate an invisible captcha manually.</li>
+<li>Styled the local ALTCHA widget with a light boxed layout, <code>#cccccc</code> outer border, stronger black checkbox border, and the module logo inside the challenge box at <code>64x64</code> pixels.</li>
+<li>Added translated alternative text to the local ALTCHA module logo.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Fixed ALTCHA and ALTCHA Sentinel fallback submissions after a solved fallback challenge.</li>
+<li>Fixed reCAPTCHA v3 first-submit handling so protected forms keep their submit button data after the token is generated.</li>
+<li>Fixed missing front-office error notification after a blocked captcha submission redirects back to the protected form.</li>
+<li>Fixed ALTCHA Sentinel API key tests so they use the configured Sentinel URL and API key consistently.</li>
+</ul>
 <h2>[1.0.2] - 2026-06-30</h2>
 <h3>Added</h3>
 <ul>

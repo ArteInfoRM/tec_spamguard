@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.2
+ * @version   1.0.3
  */
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
@@ -48,7 +48,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.2';
+        $this->version = '1.0.3';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -154,6 +154,9 @@ class Tec_spamguard extends Module
 
         $provider = null;
         $siteKey = '';
+        $fallbackProvider = null;
+        $fallbackSiteKey = '';
+        $altchaI18n = $this->getAltchaI18nConfig();
         if (!empty($forms)) {
             $provider = $this->createCaptchaProvider();
             if ($provider === null) {
@@ -163,6 +166,15 @@ class Tec_spamguard extends Module
                 if ($siteKey === '') {
                     $forms = [];
                     $provider = null;
+                }
+            }
+            if ($provider instanceof CaptchaProviderInterface && $provider->getId() === 'recaptcha_v3') {
+                $fallbackProvider = $this->createRecaptchaV3FallbackProvider();
+                if ($fallbackProvider instanceof CaptchaProviderInterface) {
+                    $fallbackSiteKey = $this->getCaptchaSiteKeyById($fallbackProvider->getId());
+                    if ($fallbackSiteKey === '') {
+                        $fallbackProvider = null;
+                    }
                 }
             }
         }
@@ -187,8 +199,24 @@ class Tec_spamguard extends Module
                 'provider' => $provider instanceof CaptchaProviderInterface ? $provider->getId() : '',
                 'siteKey' => $siteKey,
                 'responseField' => $provider instanceof CaptchaProviderInterface ? $provider->getResponseFieldName() : '',
+                'recaptchaV3ResponseField' => self::CONFIG_PREFIX . 'RECAPTCHA_V3_RESPONSE',
                 'widgetAttributes' => $provider instanceof CaptchaProviderInterface && method_exists($provider, 'getWidgetAttributes') ? $provider->getWidgetAttributes() : [],
                 'recaptchaAction' => (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
+                'recaptchaNotice' => $this->l('This site is protected by reCAPTCHA.'),
+                'recaptchaPrecheckUrl' => $this->context->link->getModuleLink($this->name, 'recaptchaprecheck'),
+                'moduleLogoUrl' => $this->_path . 'logo.png',
+                'moduleLogoAlt' => $this->l('Protected by Tec Spam Guard'),
+                'altchaI18n' => $altchaI18n,
+                'fallback' => $fallbackProvider instanceof CaptchaProviderInterface ? [
+                    'provider' => $fallbackProvider->getId(),
+                    'siteKey' => $fallbackSiteKey,
+                    'responseField' => $fallbackProvider->getResponseFieldName(),
+                    'widgetAttributes' => method_exists($fallbackProvider, 'getWidgetAttributes') ? $fallbackProvider->getWidgetAttributes() : [],
+                    'moduleLogoUrl' => $this->_path . 'logo.png',
+                    'moduleLogoAlt' => $this->l('Protected by Tec Spam Guard'),
+                    'altchaI18n' => $altchaI18n,
+                    'message' => $this->l('Complete the additional antispam verification before submitting your request.'),
+                ] : null,
                 'forms' => $forms,
                 'emailAdvisoryForms' => $emailAdvisoryForms,
                 'emailAdvisoryDomains' => $this->getEmailAdvisoryDomains(),
@@ -201,8 +229,7 @@ class Tec_spamguard extends Module
         ]);
 
         $this->context->smarty->assign([
-            'tec_spamguard_script_url' => $provider instanceof CaptchaProviderInterface ? $this->getCaptchaScriptUrl($provider, $siteKey) : '',
-            'tec_spamguard_is_module_script' => $provider instanceof CaptchaProviderInterface && in_array($provider->getId(), ['altcha', 'altcha_sentinel'], true),
+            'tec_spamguard_script_urls' => $this->getCaptchaScriptUrls($provider, $siteKey, $fallbackProvider, $fallbackSiteKey),
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/header.tpl');
@@ -417,6 +444,18 @@ class Tec_spamguard extends Module
     {
         $provider = (string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER');
 
+        return $this->createConfiguredCaptchaProviderById($provider);
+    }
+
+    /**
+     * Create a configured captcha provider by identifier.
+     *
+     * @param string $provider Provider identifier
+     *
+     * @return CaptchaProviderInterface|null
+     */
+    private function createConfiguredCaptchaProviderById($provider)
+    {
         switch ($provider) {
             case 'recaptcha_v2':
                 return new RecaptchaV2Provider();
@@ -445,6 +484,25 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Return configured reCAPTCHA v3 fallback provider.
+     *
+     * @return CaptchaProviderInterface|null
+     */
+    private function createRecaptchaV3FallbackProvider()
+    {
+        if ((string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER') !== 'recaptcha_v3') {
+            return null;
+        }
+
+        $providerId = (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_FALLBACK_PROVIDER');
+        if ($providerId === '' || $providerId === 'none' || !$this->isCaptchaProviderConfigured($providerId)) {
+            return null;
+        }
+
+        return $this->createConfiguredCaptchaProviderById($providerId);
+    }
+
+    /**
      * Create a local ALTCHA challenge.
      *
      * @return array
@@ -467,7 +525,9 @@ class Tec_spamguard extends Module
      */
     public function isLocalAltchaActive()
     {
-        return (string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER') === 'altcha';
+        return (string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER') === 'altcha'
+            || ((string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER') === 'recaptcha_v3'
+                && (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_FALLBACK_PROVIDER') === 'altcha');
     }
 
     /**
@@ -543,6 +603,7 @@ class Tec_spamguard extends Module
             self::CONFIG_PREFIX . 'RECAPTCHA_V3_SECRET' => '',
             self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION' => 'tec_spamguard',
             self::CONFIG_PREFIX . 'RECAPTCHA_V3_MIN_SCORE' => '0.50',
+            self::CONFIG_PREFIX . 'RECAPTCHA_V3_FALLBACK_PROVIDER' => 'none',
             self::CONFIG_PREFIX . 'TURNSTILE_SITEKEY' => '',
             self::CONFIG_PREFIX . 'TURNSTILE_SECRET' => '',
             self::CONFIG_PREFIX . 'ALTCHA_SECRET' => '',
@@ -582,6 +643,12 @@ class Tec_spamguard extends Module
             return $this->displayError($this->l('reCAPTCHA v3 minimum score must be between 0 and 1.'));
         }
 
+        $v3FallbackProvider = (string) Tools::getValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_FALLBACK_PROVIDER');
+        $availableFallbackProviders = array_keys($this->getConfiguredFallbackCaptchaProviders());
+        if ($v3FallbackProvider !== 'none' && !in_array($v3FallbackProvider, $availableFallbackProviders, true)) {
+            return $this->displayError($this->l('Invalid reCAPTCHA v3 fallback provider.'));
+        }
+
         $altchaDifficulty = (int) Tools::getValue(self::CONFIG_PREFIX . 'ALTCHA_DIFFICULTY');
         if ($altchaDifficulty < 1 || $altchaDifficulty > 3) {
             return $this->displayError($this->l('ALTCHA difficulty must be between 1 and 3.'));
@@ -614,6 +681,7 @@ class Tec_spamguard extends Module
         Configuration::updateValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_SITEKEY', trim((string) Tools::getValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_SITEKEY')));
         Configuration::updateValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION', $this->normalizeToken((string) Tools::getValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'), 'tec_spamguard'));
         Configuration::updateValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_MIN_SCORE', number_format((float) $v3MinScore, 2, '.', ''));
+        Configuration::updateValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_FALLBACK_PROVIDER', $v3FallbackProvider);
         Configuration::updateValue(self::CONFIG_PREFIX . 'TURNSTILE_SITEKEY', trim((string) Tools::getValue(self::CONFIG_PREFIX . 'TURNSTILE_SITEKEY')));
         Configuration::updateValue(self::CONFIG_PREFIX . 'ALTCHA_DIFFICULTY', $altchaDifficulty);
         Configuration::updateValue(self::CONFIG_PREFIX . 'ALTCHA_EXPIRES_SECONDS', $altchaExpires);
@@ -1187,6 +1255,18 @@ class Tec_spamguard extends Module
                     ['type' => 'text', 'label' => $this->l('reCAPTCHA v3 secret key'), 'name' => self::CONFIG_PREFIX . 'RECAPTCHA_V3_SECRET', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-recaptcha_v3'],
                     ['type' => 'text', 'label' => $this->l('reCAPTCHA v3 action'), 'name' => self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-recaptcha_v3'],
                     ['type' => 'text', 'label' => $this->l('reCAPTCHA v3 minimum score'), 'name' => self::CONFIG_PREFIX . 'RECAPTCHA_V3_MIN_SCORE', 'class' => 'fixed-width-sm', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-recaptcha_v3'],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('reCAPTCHA v3 fallback provider'),
+                        'name' => self::CONFIG_PREFIX . 'RECAPTCHA_V3_FALLBACK_PROVIDER',
+                        'desc' => $this->l('Select the visible captcha shown when reCAPTCHA v3 score is too low.'),
+                        'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-recaptcha_v3',
+                        'options' => [
+                            'query' => $this->getRecaptchaV3FallbackProviderOptions(),
+                            'id' => 'id',
+                            'name' => 'name',
+                        ],
+                    ],
                     ['type' => 'text', 'label' => $this->l('Turnstile site key'), 'name' => self::CONFIG_PREFIX . 'TURNSTILE_SITEKEY', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-turnstile'],
                     ['type' => 'text', 'label' => $this->l('Turnstile secret key'), 'name' => self::CONFIG_PREFIX . 'TURNSTILE_SECRET', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-turnstile'],
                     ['type' => 'text', 'label' => $this->l('ALTCHA HMAC secret'), 'name' => self::CONFIG_PREFIX . 'ALTCHA_SECRET', 'form_group_class' => 'tec-spamguard-provider-field tec-spamguard-provider-altcha'],
@@ -1221,6 +1301,67 @@ class Tec_spamguard extends Module
         ]);
 
         return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/captcha_test_button.tpl');
+    }
+
+    /**
+     * Return reCAPTCHA v3 fallback provider options.
+     *
+     * @return array
+     */
+    private function getRecaptchaV3FallbackProviderOptions()
+    {
+        $configuredProviders = $this->getConfiguredFallbackCaptchaProviders();
+        if (empty($configuredProviders)) {
+            return [
+                ['id' => 'none', 'name' => $this->l('Disabled: fallback methods are not available')],
+            ];
+        }
+
+        $options = [
+            ['id' => 'none', 'name' => $this->l('Disabled: select a fallback method')],
+        ];
+        foreach ($configuredProviders as $providerId => $label) {
+            $options[] = ['id' => $providerId, 'name' => $label];
+        }
+
+        return $options;
+    }
+
+    /**
+     * Return fallback providers with complete stored configuration.
+     *
+     * @return array
+     */
+    private function getConfiguredFallbackCaptchaProviders()
+    {
+        $providers = [];
+        if ($this->isCaptchaProviderConfigured('recaptcha_v2')) {
+            $providers['recaptcha_v2'] = 'Google reCAPTCHA v2';
+        }
+        if ($this->isCaptchaProviderConfigured('turnstile')) {
+            $providers['turnstile'] = 'Cloudflare Turnstile';
+        }
+        if ($this->isCaptchaProviderConfigured('altcha')) {
+            $providers['altcha'] = 'ALTCHA';
+        }
+        if ($this->isCaptchaProviderConfigured('altcha_sentinel')) {
+            $providers['altcha_sentinel'] = 'ALTCHA Sentinel';
+        }
+
+        return $providers;
+    }
+
+    /**
+     * Check if a captcha provider has complete stored configuration.
+     *
+     * @param string $providerId Captcha provider identifier
+     *
+     * @return bool
+     */
+    private function isCaptchaProviderConfigured($providerId)
+    {
+        return $this->getCaptchaSiteKeyById($providerId) !== ''
+            && $this->getCaptchaSecretById($providerId) !== '';
     }
 
     /**
@@ -1446,13 +1587,115 @@ class Tec_spamguard extends Module
             return '';
         }
 
-        $secret = $this->getCaptchaSecret();
-        $token = (string) Tools::getValue($provider->getResponseFieldName());
-        $result = $provider->verify($token, $secret, Tools::getRemoteAddr());
-        $error = !empty($result['success']) ? '' : $this->l('Please validate the captcha before submitting your request.');
+        if ($provider->getId() === 'recaptcha_v3') {
+            $error = $this->validateRecaptchaV3WithFallback($provider);
+            $this->captchaValidationResults[$formType] = $error;
+
+            return $error;
+        }
+
+        $result = $provider->verify(
+            (string) Tools::getValue($provider->getResponseFieldName()),
+            $this->getCaptchaSecret(),
+            Tools::getRemoteAddr()
+        );
+        $error = !empty($result['success']) ? '' : $this->getCaptchaValidationErrorMessage($provider);
         $this->captchaValidationResults[$formType] = $error;
 
         return $error;
+    }
+
+    /**
+     * Validate reCAPTCHA v3 and its configured fallback provider when needed.
+     *
+     * @param CaptchaProviderInterface $provider reCAPTCHA v3 provider
+     *
+     * @return string Error message or empty string
+     */
+    private function validateRecaptchaV3WithFallback(CaptchaProviderInterface $provider)
+    {
+        $result = $provider->verify(
+            $this->getSubmittedRecaptchaV3Token(),
+            $this->getCaptchaSecretById('recaptcha_v3'),
+            Tools::getRemoteAddr()
+        );
+        if (!empty($result['success'])) {
+            return '';
+        }
+
+        $fallbackProvider = $this->createRecaptchaV3FallbackProvider();
+        if ($fallbackProvider instanceof CaptchaProviderInterface) {
+            $fallbackResult = $fallbackProvider->verify(
+                (string) Tools::getValue($fallbackProvider->getResponseFieldName()),
+                $this->getCaptchaSecretById($fallbackProvider->getId()),
+                Tools::getRemoteAddr()
+            );
+            if (!empty($fallbackResult['success'])) {
+                return '';
+            }
+        }
+
+        return $this->getCaptchaValidationErrorMessage($provider);
+    }
+
+    /**
+     * Return the submitted reCAPTCHA v3 token.
+     *
+     * @return string
+     */
+    private function getSubmittedRecaptchaV3Token()
+    {
+        $token = (string) Tools::getValue(self::CONFIG_PREFIX . 'RECAPTCHA_V3_RESPONSE');
+        if ($token !== '') {
+            return $token;
+        }
+
+        return (string) Tools::getValue((new RecaptchaV3Provider())->getResponseFieldName());
+    }
+
+    /**
+     * Pre-check reCAPTCHA v3 token before the final form submit.
+     *
+     * @param string $token reCAPTCHA v3 response token
+     *
+     * @return array
+     */
+    public function precheckRecaptchaV3Token($token)
+    {
+        if ((string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER') !== 'recaptcha_v3') {
+            return ['success' => false, 'fallback' => false];
+        }
+
+        $provider = $this->createCaptchaProvider();
+        if (!$provider instanceof RecaptchaV3Provider) {
+            return ['success' => false, 'fallback' => false];
+        }
+
+        $result = $provider->verify((string) $token, $this->getCaptchaSecretById('recaptcha_v3'), Tools::getRemoteAddr());
+        if (!empty($result['success'])) {
+            return ['success' => true, 'fallback' => false];
+        }
+
+        return [
+            'success' => false,
+            'fallback' => $this->createRecaptchaV3FallbackProvider() instanceof CaptchaProviderInterface,
+        ];
+    }
+
+    /**
+     * Return the captcha validation error message for the active provider.
+     *
+     * @param CaptchaProviderInterface $provider Captcha provider
+     *
+     * @return string
+     */
+    private function getCaptchaValidationErrorMessage(CaptchaProviderInterface $provider)
+    {
+        if ($provider->getId() === 'recaptcha_v3') {
+            return $this->l('The antispam verification failed. Please try again in a few minutes or contact us another way.');
+        }
+
+        return $this->l('Please validate the captcha before submitting your request.');
     }
 
     /**
@@ -1466,13 +1709,69 @@ class Tec_spamguard extends Module
     private function rejectRequest($error, $formType = '')
     {
         $this->context->controller->errors[] = $error;
+        $this->persistFrontOfficeErrorNotification($error);
+
         $returnUrl = $this->getFormReturnUrl($formType);
 
-        if (method_exists($this->context->controller, 'redirectWithNotifications')) {
-            $this->context->controller->redirectWithNotifications($returnUrl);
+        Tools::redirect($returnUrl);
+    }
+
+    /**
+     * Persist a front-office error for the next page after a redirect.
+     *
+     * @param string $error Error message
+     *
+     * @return void
+     */
+    private function persistFrontOfficeErrorNotification($error)
+    {
+        $notifications = [
+            'error' => $this->getControllerNotificationList('errors'),
+            'warning' => $this->getControllerNotificationList('warning'),
+            'success' => $this->getControllerNotificationList('success'),
+            'info' => $this->getControllerNotificationList('info'),
+        ];
+
+        $error = trim((string) $error);
+        if ($error !== '' && !in_array($error, $notifications['error'], true)) {
+            $notifications['error'][] = $error;
         }
 
-        Tools::redirect($returnUrl);
+        $encodedNotifications = json_encode($notifications);
+        if (!is_string($encodedNotifications)) {
+            return;
+        }
+
+        if (session_status() === PHP_SESSION_NONE) {
+            @session_start();
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION['notifications'] = $encodedNotifications;
+        } else {
+            setcookie('notifications', $encodedNotifications);
+        }
+
+        $_COOKIE['notifications'] = $encodedNotifications;
+    }
+
+    /**
+     * Return a controller notification list when available.
+     *
+     * @param string $property Controller notification property
+     *
+     * @return array
+     */
+    private function getControllerNotificationList($property)
+    {
+        if (!isset($this->context->controller->{$property})
+            || !is_array($this->context->controller->{$property})) {
+            return [];
+        }
+
+        return array_values(array_filter($this->context->controller->{$property}, function ($message) {
+            return trim((string) $message) !== '';
+        }));
     }
 
     /**
@@ -1586,17 +1885,24 @@ class Tec_spamguard extends Module
             return;
         }
 
-        $captchaError = $this->l('Please validate the captcha before submitting your request.');
+        $captchaErrors = [
+            $this->l('Please validate the captcha before submitting your request.'),
+            $this->l('The antispam verification failed. Please try again in a few minutes or contact us another way.'),
+        ];
 
         if (isset($this->context->controller->errors)) {
-            $this->context->controller->errors = $this->filterCaptchaNotificationList(
-                $this->context->controller->errors,
-                $captchaError
-            );
+            foreach ($captchaErrors as $captchaError) {
+                $this->context->controller->errors = $this->filterCaptchaNotificationList(
+                    $this->context->controller->errors,
+                    $captchaError
+                );
+            }
         }
 
-        $this->clearSessionCaptchaNotifications($captchaError);
-        $this->clearCookieCaptchaNotifications($captchaError);
+        foreach ($captchaErrors as $captchaError) {
+            $this->clearSessionCaptchaNotifications($captchaError);
+            $this->clearCookieCaptchaNotifications($captchaError);
+        }
     }
 
     /**
@@ -1876,7 +2182,19 @@ class Tec_spamguard extends Module
      */
     private function getCaptchaSiteKey()
     {
-        switch ((string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER')) {
+        return $this->getCaptchaSiteKeyById((string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER'));
+    }
+
+    /**
+     * Return captcha public site key or challenge URL by provider identifier.
+     *
+     * @param string $providerId Captcha provider identifier
+     *
+     * @return string
+     */
+    private function getCaptchaSiteKeyById($providerId)
+    {
+        switch ((string) $providerId) {
             case 'recaptcha_v2':
                 return (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V2_SITEKEY');
             case 'recaptcha_v3':
@@ -1886,7 +2204,7 @@ class Tec_spamguard extends Module
             case 'altcha':
                 return $this->context->link->getModuleLink($this->name, 'altchachallenge');
             case 'altcha_sentinel':
-                $provider = $this->createCaptchaProvider();
+                $provider = $this->createConfiguredCaptchaProviderById('altcha_sentinel');
 
                 return $provider instanceof AltchaSentinelProvider ? $provider->getChallengeUrl() : '';
         }
@@ -1912,13 +2230,93 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Return localized ALTCHA widget strings for the current shop language.
+     *
+     * @return array
+     */
+    private function getAltchaI18nConfig()
+    {
+        $language = strtolower((string) $this->context->language->iso_code);
+        if (!preg_match('/^[a-z]{2}$/', $language)) {
+            $language = 'en';
+        }
+
+        return [
+            'language' => $language,
+            'strings' => [
+                'label' => $this->l('I am not a robot'),
+                'verified' => $this->l('Verified'),
+                'verifying' => $this->l('Verifying...'),
+                'error' => $this->l('Verification failed. Try again later.'),
+                'expired' => $this->l('Verification expired. Try again.'),
+                'loading' => $this->l('Loading...'),
+                'verificationRequired' => $this->l('Verification required!'),
+                'waitAlert' => $this->l('Verifying... please wait.'),
+            ],
+        ];
+    }
+
+    /**
+     * Return captcha scripts required by the active provider and optional fallback provider.
+     *
+     * @param CaptchaProviderInterface|null $provider Active captcha provider
+     * @param string $siteKey Active provider site key
+     * @param CaptchaProviderInterface|null $fallbackProvider Fallback captcha provider
+     * @param string $fallbackSiteKey Fallback provider site key
+     *
+     * @return array
+     */
+    private function getCaptchaScriptUrls($provider, $siteKey, $fallbackProvider, $fallbackSiteKey)
+    {
+        $scripts = [];
+        $hasGoogleRecaptcha = false;
+        foreach ([[$provider, $siteKey], [$fallbackProvider, $fallbackSiteKey]] as $scriptData) {
+            if (!$scriptData[0] instanceof CaptchaProviderInterface || (string) $scriptData[1] === '') {
+                continue;
+            }
+
+            if ($scriptData[0]->getId() === 'recaptcha_v2' && $hasGoogleRecaptcha) {
+                continue;
+            }
+
+            $url = $this->getCaptchaScriptUrl($scriptData[0], (string) $scriptData[1]);
+            if ($url === '' || isset($scripts[$url])) {
+                continue;
+            }
+
+            if (in_array($scriptData[0]->getId(), ['recaptcha_v2', 'recaptcha_v3'], true)) {
+                $hasGoogleRecaptcha = true;
+            }
+
+            $scripts[$url] = [
+                'url' => $url,
+                'is_module' => in_array($scriptData[0]->getId(), ['altcha', 'altcha_sentinel'], true),
+            ];
+        }
+
+        return array_values($scripts);
+    }
+
+    /**
      * Return captcha secret.
      *
      * @return string
      */
     private function getCaptchaSecret()
     {
-        switch ((string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER')) {
+        return $this->getCaptchaSecretById((string) Configuration::get(self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER'));
+    }
+
+    /**
+     * Return captcha secret by provider identifier.
+     *
+     * @param string $providerId Captcha provider identifier
+     *
+     * @return string
+     */
+    private function getCaptchaSecretById($providerId)
+    {
+        switch ((string) $providerId) {
             case 'recaptcha_v2':
                 return (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V2_SECRET');
             case 'recaptcha_v3':
