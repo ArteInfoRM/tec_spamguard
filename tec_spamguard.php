@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -7,7 +8,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.4
+ * @version   1.0.5
  */
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
@@ -48,7 +49,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.4';
+        $this->version = '1.0.5';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -384,7 +385,7 @@ class Tec_spamguard extends Module
             if (!headers_sent()) {
                 header('Content-Type: application/json; charset=utf-8');
             }
-            die(json_encode([
+            exit(json_encode([
                 'hasErrors' => true,
                 'errors' => [$error],
             ]));
@@ -2281,7 +2282,7 @@ class Tec_spamguard extends Module
 
         $shopIds = Shop::getShops(false, null, true);
         if (!is_array($shopIds) || empty($shopIds)) {
-            $shopIds = [(int) Context::getContext()->shop->id ?: 1];
+            $shopIds = [1];
         }
 
         $ok = true;

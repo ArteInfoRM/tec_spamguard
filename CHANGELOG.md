@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.0.5] - 2026-07-02
+### Fixed
+- Fixed validator compatibility warnings by removing direct `Context` class usage from hook registration fallbacks.
+- Fixed coding standard warnings in the `1.0.4` upgrade script and AJAX admin-login captcha response.
+
+---
 ## [1.0.4] - 2026-07-02
 ### Added
 - Added an optional **Captcha on back-office login** switch that injects the configured captcha provider into the PrestaShop employee login page.

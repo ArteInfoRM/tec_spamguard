@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -6,7 +7,6 @@
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
  */
-
 if (!defined('_PS_VERSION_')) {
     exit;
 }
@@ -48,7 +48,7 @@ function tec_spamguard_104_register_hook($module, $hookName)
 
     $shopIds = Shop::getShops(false, null, true);
     if (!is_array($shopIds) || empty($shopIds)) {
-        $shopIds = [(int) Context::getContext()->shop->id ?: 1];
+        $shopIds = [1];
     }
 
     $ok = true;
