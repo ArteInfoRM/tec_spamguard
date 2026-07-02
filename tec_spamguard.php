@@ -1,5 +1,4 @@
 <?php
-
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -8,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.6
+ * @version   1.0.7
  */
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
@@ -49,7 +48,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.6';
+        $this->version = '1.0.7';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -75,7 +74,6 @@ class Tec_spamguard extends Module
                 'displayHeader',
                 'displayAdminLogin',
                 'actionDispatcher',
-                'actionAdminLoginControllerLoginBefore',
                 'actionContactFormSubmitBefore',
                 'actionSubmitAccountBefore',
             ])
@@ -328,29 +326,6 @@ class Tec_spamguard extends Module
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/admin_login.tpl');
-    }
-
-    /**
-     * Validate captcha before legacy AdminLogin authenticates the employee.
-     *
-     * @param array $params Hook parameters
-     *
-     * @return void
-     */
-    public function hookActionAdminLoginControllerLoginBefore($params)
-    {
-        if (!$this->isAdminLoginCaptchaReady()) {
-            return;
-        }
-
-        $error = $this->validateCaptcha('admin_login');
-        if ($error === '') {
-            return;
-        }
-
-        if (isset($params['controller']) && is_object($params['controller']) && property_exists($params['controller'], 'errors')) {
-            $params['controller']->errors[] = $error;
-        }
     }
 
     /**
@@ -2279,8 +2254,7 @@ class Tec_spamguard extends Module
      */
     private function ensureAdminLoginHooks()
     {
-        return $this->ensureHookRegistration('displayAdminLogin')
-            && $this->ensureHookRegistration('actionAdminLoginControllerLoginBefore');
+        return $this->ensureHookRegistration('displayAdminLogin');
     }
 
     /**

@@ -1,5 +1,4 @@
 <?php
-
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -24,8 +23,7 @@ function upgrade_module_1_0_4($module)
         Configuration::updateValue('TEC_SPAMGUARD_ADMIN_LOGIN_CAPTCHA', 0);
     }
 
-    return tec_spamguard_104_register_hook($module, 'displayAdminLogin')
-        && tec_spamguard_104_register_hook($module, 'actionAdminLoginControllerLoginBefore');
+    return tec_spamguard_104_register_hook($module, 'displayAdminLogin');
 }
 
 /**

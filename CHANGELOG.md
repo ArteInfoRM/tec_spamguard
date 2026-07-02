@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.0.7] - 2026-07-02
+### Fixed
+- Removed the deleted admin-login-before hook registration and method while keeping admin login validation through `actionDispatcher`.
+- Fixed validator license warnings by removing blank lines before file comments.
+
+---
 ## [1.0.6] - 2026-07-02
 ### Fixed
 - Fixed the back-office captcha key test URL and POST payload handling for PrestaShop 9 multishop back offices.
@@ -22,7 +28,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.4] - 2026-07-02
 ### Added
 - Added an optional **Captcha on back-office login** switch that injects the configured captcha provider into the PrestaShop employee login page.
-- Added legacy admin login server-side validation through `actionAdminLoginControllerLoginBefore`, with AJAX-friendly errors for blocked login attempts.
+- Added legacy admin login server-side validation for blocked login attempts.
 - Added `upgrade-1.0.4.php` to initialize the new setting disabled and register the new admin login hooks on existing installations.
 
 ### Changed

@@ -252,8 +252,7 @@
 <ul>
 <li><code>displayHeader</code> loads the front-office JavaScript and captcha provider script only on pages that may contain protected forms.</li>
 <li><code>displayAdminLogin</code> injects the configured captcha provider into the PrestaShop employee login page when back-office login captcha is enabled.</li>
-<li><code>actionDispatcher</code> detects submitted native forms before the target front controller processes the request.</li>
-<li><code>actionAdminLoginControllerLoginBefore</code> validates the back-office login captcha on legacy PrestaShop admin login flows before employee authentication.</li>
+<li><code>actionDispatcher</code> detects submitted native forms before the target front controller processes the request and validates back-office login captcha submissions on legacy admin login flows.</li>
 <li><code>actionContactFormSubmitBefore</code> and <code>actionSubmitAccountBefore</code> are used as native hook fallbacks where PrestaShop exposes them.</li>
 <li>A dedicated <code>altchachallenge</code> module front controller generates local ALTCHA challenges.</li>
 <li>Small form descriptor classes identify supported forms and read submitted values without coupling the validators to a specific controller implementation.</li>

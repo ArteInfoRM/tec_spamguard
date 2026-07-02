@@ -118,6 +118,13 @@
 <hr>
 <h2>[Unreleased]</h2>
 <hr>
+<h2>[1.0.7] - 2026-07-02</h2>
+<h3>Fixed</h3>
+<ul>
+<li>Removed the deleted admin-login-before hook registration and method while keeping admin login validation through <code>actionDispatcher</code>.</li>
+<li>Fixed validator license warnings by removing blank lines before file comments.</li>
+</ul>
+<hr>
 <h2>[1.0.6] - 2026-07-02</h2>
 <h3>Fixed</h3>
 <ul>
@@ -138,7 +145,7 @@
 <h3>Added</h3>
 <ul>
 <li>Added an optional <strong>Captcha on back-office login</strong> switch that injects the configured captcha provider into the PrestaShop employee login page.</li>
-<li>Added legacy admin login server-side validation through <code>actionAdminLoginControllerLoginBefore</code>, with AJAX-friendly errors for blocked login attempts.</li>
+<li>Added legacy admin login server-side validation for blocked login attempts.</li>
 <li>Added <code>upgrade-1.0.4.php</code> to initialize the new setting disabled and register the new admin login hooks on existing installations.</li>
 </ul>
 <h3>Changed</h3>

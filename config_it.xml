@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
-    <name><![CDATA[tec_spamguard]]></name>
+    <name>tec_spamguard</name>
     <displayName><![CDATA[Tec Spam Guard]]></displayName>
-    <version><![CDATA[1.0.6]]></version>
-    <description><![CDATA[Protegge i form di contatto, registrazione, login e recupero password dallo spam con captcha, validazione email e regole sui messaggi.]]></description>
+    <version><![CDATA[1.0.7]]></version>
+    <description><![CDATA[Protegge i moduli di contatto, registrazione, accesso e recupero password dallo spam con captcha, validazione email e controllo dei messaggi.]]></description>
     <author><![CDATA[Tecnoacquisti.com]]></author>
     <tab><![CDATA[front_office_features]]></tab>
     <is_configurable>1</is_configurable>
     <need_instance>0</need_instance>
+	<limited_countries></limited_countries>
 </module>
