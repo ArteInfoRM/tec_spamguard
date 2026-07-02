@@ -108,6 +108,26 @@
         return form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
     }
 
+    function shouldInsertBeforeSubmitParent(submit) {
+        var parent = submit ? submit.parentNode : null;
+        var style;
+
+        if (!parent || parent.nodeType !== 1) {
+            return false;
+        }
+        if (parent.classList.contains('form-footer')
+            || parent.classList.contains('form-actions')
+            || parent.classList.contains('checkout-step-actions')
+            || parent.classList.contains('js-address-form-actions')
+            || parent.classList.contains('cart_navigation')) {
+            return true;
+        }
+
+        style = window.getComputedStyle ? window.getComputedStyle(parent) : null;
+
+        return !!style && ['flex', 'inline-flex', 'grid', 'inline-grid'].indexOf(style.display) !== -1;
+    }
+
     function getEmailField(form, type) {
         if (type === 'contact') {
             return form.querySelector('input[name="from"]');
@@ -168,6 +188,11 @@
 
         var submit = findSubmit(form);
         if (submit && submit.parentNode) {
+            if (shouldInsertBeforeSubmitParent(submit) && submit.parentNode.parentNode) {
+                submit.parentNode.parentNode.insertBefore(container, submit.parentNode);
+
+                return container;
+            }
             submit.parentNode.insertBefore(container, submit);
             return container;
         }

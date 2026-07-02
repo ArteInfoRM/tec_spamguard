@@ -49,6 +49,76 @@
         }
     }
 
+    function buildAjaxUrl(baseUrl) {
+        var url = new URL(baseUrl || window.location.href, window.location.href);
+        url.hash = '';
+        url.searchParams.set('ajax', '1');
+        url.searchParams.set('action', 'testCaptchaKeys');
+
+        return url.toString();
+    }
+
+    function getAjaxUrls() {
+        var urls = [];
+        var sources = [
+            window.location.href,
+            form ? form.getAttribute('action') : '',
+            btn.dataset.url
+        ];
+
+        sources.forEach(function (source) {
+            var url;
+            if (!source) {
+                return;
+            }
+            url = buildAjaxUrl(source);
+            if (urls.indexOf(url) === -1) {
+                urls.push(url);
+            }
+        });
+
+        return urls;
+    }
+
+    function parseJsonResponse(response, text, urls, index, payload) {
+        var data;
+        try {
+            data = JSON.parse(text);
+        } catch (error) {
+            if (index + 1 < urls.length) {
+                return requestJson(urls, index + 1, payload);
+            }
+            var message = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            throw new Error(message ? message.substring(0, 180) : error.message);
+        }
+
+        if (!response.ok) {
+            if (index + 1 < urls.length) {
+                return requestJson(urls, index + 1, payload);
+            }
+            throw new Error(data && data.message ? data.message : 'HTTP ' + response.status);
+        }
+
+        return data;
+    }
+
+    function requestJson(urls, index, payload) {
+        return fetch(urls[index], {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: payload,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(function (response) {
+            return response.text().then(function (text) {
+                return parseJsonResponse(response, text, urls, index, payload);
+            });
+        });
+    }
+
     if (provider) {
         provider.addEventListener('change', toggleButton);
         toggleButton();
@@ -71,29 +141,24 @@
             altcha_sentinel: 'TEC_SPAMGUARD_ALTCHA_SENTINEL_API_KEY'
         }[providerValue];
         var body = new URLSearchParams();
+        var payload;
 
         btn.disabled = true;
         btn.innerHTML = btn.dataset.running;
         res.innerHTML = '';
 
         body.append('provider', providerValue);
+        body.append('ajax', '1');
+        body.append('action', 'testCaptchaKeys');
         if (siteName) {
             body.append('sitekey', fieldValue(siteName));
         }
         if (secretName) {
             body.append('secret', fieldValue(secretName));
         }
+        payload = body.toString();
 
-        fetch(btn.dataset.url, {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: body,
-            headers: {
-                Accept: 'application/json'
-            }
-        }).then(function (response) {
-            return response.json();
-        }).then(function (data) {
+        requestJson(getAjaxUrls(), 0, payload).then(function (data) {
             var colorClass = data && data.success ? 'tec-spamguard-captcha-test-success' : 'tec-spamguard-captcha-test-error';
             var message = data && data.message ? data.message : 'Error';
             btn.disabled = false;

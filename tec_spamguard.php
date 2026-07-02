@@ -8,7 +8,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.5
+ * @version   1.0.6
  */
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
@@ -49,7 +49,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.5';
+        $this->version = '1.0.6';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -103,8 +103,7 @@ class Tec_spamguard extends Module
      */
     public function getContent()
     {
-        if ((int) Tools::getValue('ajax') === 1
-            && Tools::getValue('action') === 'testCaptchaKeys') {
+        if (Tools::getValue('action') === 'testCaptchaKeys') {
             $this->ajaxTestCaptchaKeys();
         }
 
@@ -190,12 +189,12 @@ class Tec_spamguard extends Module
         $this->context->controller->registerJavascript(
             'module-tec-spamguard-front',
             'modules/' . $this->name . '/views/js/front.js',
-            ['position' => 'bottom', 'priority' => 150]
+            ['position' => 'bottom', 'priority' => 150, 'version' => $this->getAssetVersion('views/js/front.js')]
         );
         $this->context->controller->registerStylesheet(
             'module-tec-spamguard-front',
             'modules/' . $this->name . '/views/css/front.css',
-            ['media' => 'all', 'priority' => 150]
+            ['media' => 'all', 'priority' => 150, 'version' => $this->getAssetVersion('views/css/front.css')]
         );
 
         Media::addJsDef([
@@ -208,7 +207,7 @@ class Tec_spamguard extends Module
                 'recaptchaAction' => (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
                 'recaptchaNotice' => $this->l('This site is protected by reCAPTCHA.'),
                 'recaptchaPrecheckUrl' => $this->context->link->getModuleLink($this->name, 'recaptchaprecheck'),
-                'moduleLogoUrl' => $this->_path . 'logo.png',
+                'moduleLogoUrl' => __PS_BASE_URI__ . 'modules/' . $this->name . '/logo.png',
                 'moduleLogoAlt' => $this->l('Protected by Tec Spam Guard'),
                 'altchaI18n' => $altchaI18n,
                 'fallback' => $fallbackProvider instanceof CaptchaProviderInterface ? [
@@ -216,7 +215,7 @@ class Tec_spamguard extends Module
                     'siteKey' => $fallbackSiteKey,
                     'responseField' => $fallbackProvider->getResponseFieldName(),
                     'widgetAttributes' => method_exists($fallbackProvider, 'getWidgetAttributes') ? $fallbackProvider->getWidgetAttributes() : [],
-                    'moduleLogoUrl' => $this->_path . 'logo.png',
+                    'moduleLogoUrl' => __PS_BASE_URI__ . 'modules/' . $this->name . '/logo.png',
                     'moduleLogoAlt' => $this->l('Protected by Tec Spam Guard'),
                     'altchaI18n' => $altchaI18n,
                     'message' => $this->l('Complete the additional antispam verification before submitting your request.'),
@@ -307,7 +306,7 @@ class Tec_spamguard extends Module
             'tec_spamguard_admin_response_field' => $provider->getResponseFieldName(),
             'tec_spamguard_admin_recaptcha_v3_response_field' => self::CONFIG_PREFIX . 'RECAPTCHA_V3_RESPONSE',
             'tec_spamguard_admin_recaptcha_action' => (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
-            'tec_spamguard_admin_recaptcha_precheck_url' => $this->context->link->getModuleLink($this->name, 'recaptchaprecheck'),
+            'tec_spamguard_admin_recaptcha_precheck_url' => $this->getCurrentRequestModuleUrl('recaptchaprecheck'),
             'tec_spamguard_admin_widget_attributes_json' => json_encode(
                 method_exists($provider, 'getWidgetAttributes') ? $provider->getWidgetAttributes() : []
             ),
@@ -1424,9 +1423,15 @@ class Tec_spamguard extends Module
      */
     private function renderCaptchaTestButton()
     {
-        $url = AdminController::$currentIndex . '&configure=' . $this->name
-            . '&token=' . Tools::getAdminTokenLite('AdminModules')
-            . '&ajax=1&action=testCaptchaKeys';
+        $url = $this->context->link->getAdminLink('AdminModules', false)
+            . '&' . http_build_query([
+                'configure' => $this->name,
+                'tab_module' => $this->tab,
+                'module_name' => $this->name,
+                'token' => Tools::getAdminTokenLite('AdminModules'),
+                'ajax' => 1,
+                'action' => 'testCaptchaKeys',
+            ]);
 
         $this->context->smarty->assign([
             'tec_spamguard_captcha_test_url' => $url,
@@ -1435,6 +1440,21 @@ class Tec_spamguard extends Module
         ]);
 
         return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/captcha_test_button.tpl');
+    }
+
+    /**
+     * Return a cache-busting version for a front-office asset.
+     *
+     * @param string $relativePath Module-relative asset path
+     *
+     * @return string
+     */
+    private function getAssetVersion($relativePath)
+    {
+        $path = $this->local_path . ltrim((string) $relativePath, '/');
+        $mtime = is_file($path) ? filemtime($path) : false;
+
+        return $this->version . ($mtime ? '-' . (int) $mtime : '');
     }
 
     /**
@@ -2427,6 +2447,36 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Return a module front-controller URL on the current request host.
+     *
+     * @param string $controller Front-controller name
+     *
+     * @return string
+     */
+    private function getCurrentRequestModuleUrl($controller)
+    {
+        $url = $this->context->link->getModuleLink($this->name, (string) $controller);
+        $host = isset($_SERVER['HTTP_HOST']) ? trim((string) $_SERVER['HTTP_HOST']) : '';
+
+        if ($host === '' || !preg_match('/^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/', $host)) {
+            return $url;
+        }
+
+        $parts = parse_url($url);
+        if (!is_array($parts) || empty($parts['path'])) {
+            return $url;
+        }
+
+        $scheme = Tools::usingSecureMode() ? 'https' : 'http';
+        $rebuilt = $scheme . '://' . $host . $parts['path'];
+        if (!empty($parts['query'])) {
+            $rebuilt .= '?' . $parts['query'];
+        }
+
+        return $rebuilt;
+    }
+
+    /**
      * Return captcha public site key or challenge URL by provider identifier.
      *
      * @param string $providerId Captcha provider identifier
@@ -2443,7 +2493,7 @@ class Tec_spamguard extends Module
             case 'turnstile':
                 return (string) Configuration::get(self::CONFIG_PREFIX . 'TURNSTILE_SITEKEY');
             case 'altcha':
-                return $this->context->link->getModuleLink($this->name, 'altchachallenge');
+                return $this->getCurrentRequestModuleUrl('altchachallenge');
             case 'altcha_sentinel':
                 $provider = $this->createConfiguredCaptchaProviderById('altcha_sentinel');
 

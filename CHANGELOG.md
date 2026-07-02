@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [Unreleased]
+
+---
+## [1.0.6] - 2026-07-02
+### Fixed
+- Fixed the back-office captcha key test URL and POST payload handling for PrestaShop 9 multishop back offices.
+- Fixed captcha widget placement in Hummingbird forms when submit buttons are inside flex or action containers.
+- Fixed local ALTCHA styling on Warehouse when Smart cache for JavaScript serves an older aggregated theme bundle.
+- Fixed local ALTCHA challenge URLs on multishop back-office login pages so the challenge uses the current admin request domain.
+
+---
 ## [1.0.5] - 2026-07-02
 ### Fixed
 - Fixed validator compatibility warnings by removing direct `Context` class usage from hook registration fallbacks.
