@@ -10,7 +10,7 @@ Tec Spam Guard by Tecnoacquisti.com® protects contact, registration, login, che
 ## Features
 
 - Captcha providers: Google reCAPTCHA v2, Google reCAPTCHA v3, Cloudflare Turnstile, ALTCHA, and ALTCHA Sentinel.
-- Per-form captcha switches for Contact, Register, Login, Checkout identity, and Forgot password.
+- Per-form captcha switches for Contact, Register, Login, Checkout identity, Forgot password, and the PrestaShop back-office login page.
 - Optional checkout captcha switch: checkout registration and login follow the normal Register and Login captcha settings only when checkout captcha is enabled.
 - Optional captcha bypass for logged-in customers.
 - Email validation for Contact and Register by default, with optional validation on Login and Forgot password.
@@ -53,6 +53,7 @@ The checkout rule is:
 - `Captcha on registration form` controls registration captcha globally.
 - `Captcha on login form` controls login captcha globally.
 - `Captcha during checkout` decides whether those Register and Login captcha settings also apply inside the checkout.
+- `Captcha on back-office login` adds the configured captcha provider to the PrestaShop employee login page. Legacy PrestaShop admin login flows are validated server-side before authentication; PrestaShop 9 renders the captcha on the Symfony login page and relies on the browser-side gate because the core authenticator handles the POST before legacy module hooks.
 
 If `Captcha during checkout` is disabled, the checkout does not ask for captcha on registration or login, even if the normal Register or Login captcha settings are enabled. This affects only captcha. Email validation remains independent and still runs when the related Register or Login email validation switch is enabled.
 
@@ -204,7 +205,9 @@ Tec Spam Guard does not use PrestaShop overrides. It does not replace core contr
 The module is implemented through standard PrestaShop extension points:
 
 - `displayHeader` loads the front-office JavaScript and captcha provider script only on pages that may contain protected forms.
+- `displayAdminLogin` injects the configured captcha provider into the PrestaShop employee login page when back-office login captcha is enabled.
 - `actionDispatcher` detects submitted native forms before the target front controller processes the request.
+- `actionAdminLoginControllerLoginBefore` validates the back-office login captcha on legacy PrestaShop admin login flows before employee authentication.
 - `actionContactFormSubmitBefore` and `actionSubmitAccountBefore` are used as native hook fallbacks where PrestaShop exposes them.
 - A dedicated `altchachallenge` module front controller generates local ALTCHA challenges.
 - Small form descriptor classes identify supported forms and read submitted values without coupling the validators to a specific controller implementation.

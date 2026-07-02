@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.3
+ * @version   1.0.4
  */
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
@@ -48,7 +48,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.3';
+        $this->version = '1.0.4';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -72,7 +72,9 @@ class Tec_spamguard extends Module
         return parent::install()
             && $this->registerHook([
                 'displayHeader',
+                'displayAdminLogin',
                 'actionDispatcher',
+                'actionAdminLoginControllerLoginBefore',
                 'actionContactFormSubmitBefore',
                 'actionSubmitAccountBefore',
             ])
@@ -116,8 +118,9 @@ class Tec_spamguard extends Module
         }
         if (Tools::isSubmit('submitTecSpamGuardCaptchaForms')) {
             $output .= $this->postProcessSwitchConfiguration([
-                'CONTACT_CAPTCHA', 'REGISTER_CAPTCHA', 'LOGIN_CAPTCHA', 'CHECKOUT_CAPTCHA', 'SKIP_LOGGED_CUSTOMER_CAPTCHA', 'PASSWORD_CAPTCHA',
+                'CONTACT_CAPTCHA', 'REGISTER_CAPTCHA', 'LOGIN_CAPTCHA', 'CHECKOUT_CAPTCHA', 'SKIP_LOGGED_CUSTOMER_CAPTCHA', 'PASSWORD_CAPTCHA', 'ADMIN_LOGIN_CAPTCHA',
             ]);
+            $this->ensureAdminLoginHooks();
         }
         if (Tools::isSubmit('submitTecSpamGuardEmailValidation')) {
             $output .= $this->postProcessEmailValidationConfiguration();
@@ -244,7 +247,10 @@ class Tec_spamguard extends Module
      */
     public function hookActionDispatcher($params)
     {
-        unset($params);
+        $this->validateAdminLoginPost($params);
+        if (defined('_PS_ADMIN_DIR_')) {
+            return;
+        }
 
         $this->clearCheckoutCaptchaNotifications();
 
@@ -256,6 +262,132 @@ class Tec_spamguard extends Module
         $error = $this->validateSubmittedForm($form);
         if ($error !== '') {
             $this->rejectRequest($error, $form->getType());
+        }
+    }
+
+    /**
+     * Render captcha on the native back-office login page.
+     *
+     * @return string
+     */
+    public function hookDisplayAdminLogin()
+    {
+        if (!$this->isAdminLoginCaptchaEnabled()) {
+            return '';
+        }
+
+        $provider = $this->createCaptchaProvider();
+        if (!$provider instanceof CaptchaProviderInterface) {
+            return '';
+        }
+
+        $siteKey = $this->getCaptchaSiteKey();
+        if ($siteKey === '') {
+            return '';
+        }
+
+        $fallbackProvider = null;
+        $fallbackSiteKey = '';
+        if ($provider->getId() === 'recaptcha_v3') {
+            $fallbackProvider = $this->createRecaptchaV3FallbackProvider();
+            if ($fallbackProvider instanceof CaptchaProviderInterface) {
+                $fallbackSiteKey = $this->getCaptchaSiteKeyById($fallbackProvider->getId());
+                if ($fallbackSiteKey === '') {
+                    $fallbackProvider = null;
+                }
+            }
+        }
+
+        $altchaI18n = $this->getAltchaI18nConfig();
+
+        $this->context->smarty->assign([
+            'tec_spamguard_admin_provider' => $provider->getId(),
+            'tec_spamguard_admin_site_key' => $siteKey,
+            'tec_spamguard_admin_response_field' => $provider->getResponseFieldName(),
+            'tec_spamguard_admin_recaptcha_v3_response_field' => self::CONFIG_PREFIX . 'RECAPTCHA_V3_RESPONSE',
+            'tec_spamguard_admin_recaptcha_action' => (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
+            'tec_spamguard_admin_recaptcha_precheck_url' => $this->context->link->getModuleLink($this->name, 'recaptchaprecheck'),
+            'tec_spamguard_admin_widget_attributes_json' => json_encode(
+                method_exists($provider, 'getWidgetAttributes') ? $provider->getWidgetAttributes() : []
+            ),
+            'tec_spamguard_admin_fallback_json' => json_encode($fallbackProvider instanceof CaptchaProviderInterface ? [
+                'provider' => $fallbackProvider->getId(),
+                'siteKey' => $fallbackSiteKey,
+                'responseField' => $fallbackProvider->getResponseFieldName(),
+                'widgetAttributes' => method_exists($fallbackProvider, 'getWidgetAttributes') ? $fallbackProvider->getWidgetAttributes() : [],
+                'moduleLogoUrl' => __PS_BASE_URI__ . 'modules/' . $this->name . '/logo.png',
+                'moduleLogoAlt' => $this->l('Protected by Tec Spam Guard'),
+                'altchaI18n' => $altchaI18n,
+                'message' => $this->l('Complete the additional antispam verification before logging in.'),
+            ] : null),
+            'tec_spamguard_admin_script_urls' => $this->getCaptchaScriptUrls($provider, $siteKey, $fallbackProvider, $fallbackSiteKey),
+            'tec_spamguard_admin_logo_url' => __PS_BASE_URI__ . 'modules/' . $this->name . '/logo.png',
+            'tec_spamguard_admin_logo_alt' => $this->l('Protected by Tec Spam Guard'),
+            'tec_spamguard_admin_altcha_i18n_json' => json_encode($altchaI18n),
+            'tec_spamguard_admin_message' => $this->l('Complete the antispam verification before logging in.'),
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/hook/admin_login.tpl');
+    }
+
+    /**
+     * Validate captcha before legacy AdminLogin authenticates the employee.
+     *
+     * @param array $params Hook parameters
+     *
+     * @return void
+     */
+    public function hookActionAdminLoginControllerLoginBefore($params)
+    {
+        if (!$this->isAdminLoginCaptchaReady()) {
+            return;
+        }
+
+        $error = $this->validateCaptcha('admin_login');
+        if ($error === '') {
+            return;
+        }
+
+        if (isset($params['controller']) && is_object($params['controller']) && property_exists($params['controller'], 'errors')) {
+            $params['controller']->errors[] = $error;
+        }
+    }
+
+    /**
+     * Fallback validation for admin login POST when dispatcher hook sees it first.
+     *
+     * @param array $params Hook parameters
+     *
+     * @return void
+     */
+    private function validateAdminLoginPost(array $params)
+    {
+        if (!$this->isAdminLoginCaptchaReady() || !defined('_PS_ADMIN_DIR_')) {
+            return;
+        }
+        if ((string) Tools::getValue('controller') !== 'AdminLogin' || !Tools::isSubmit('submitLogin')) {
+            return;
+        }
+
+        $error = $this->validateCaptcha('admin_login');
+        if ($error === '') {
+            return;
+        }
+
+        if (isset($params['controller']) && is_object($params['controller']) && property_exists($params['controller'], 'errors')) {
+            $params['controller']->errors[] = $error;
+
+            return;
+        }
+
+        if (Tools::isSubmit('ajax')) {
+            if (!headers_sent()) {
+                header('Content-Type: application/json; charset=utf-8');
+            }
+            die(json_encode([
+                'hasErrors' => true,
+                'errors' => [$error],
+            ]));
         }
     }
 
@@ -584,6 +716,7 @@ class Tec_spamguard extends Module
             self::CONFIG_PREFIX . 'CHECKOUT_CAPTCHA' => 1,
             self::CONFIG_PREFIX . 'SKIP_LOGGED_CUSTOMER_CAPTCHA' => 0,
             self::CONFIG_PREFIX . 'PASSWORD_CAPTCHA' => 1,
+            self::CONFIG_PREFIX . 'ADMIN_LOGIN_CAPTCHA' => 0,
             self::CONFIG_PREFIX . 'CONTACT_EMAIL' => 1,
             self::CONFIG_PREFIX . 'REGISTER_EMAIL' => 1,
             self::CONFIG_PREFIX . 'LOGIN_EMAIL' => 0,
@@ -1395,6 +1528,14 @@ class Tec_spamguard extends Module
                         'values' => $this->getSwitchValues(),
                     ],
                     ['type' => 'switch', 'label' => $this->l('Captcha on password reset form'), 'name' => self::CONFIG_PREFIX . 'PASSWORD_CAPTCHA', 'is_bool' => true, 'values' => $this->getSwitchValues()],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Captcha on back-office login'),
+                        'name' => self::CONFIG_PREFIX . 'ADMIN_LOGIN_CAPTCHA',
+                        'is_bool' => true,
+                        'desc' => $this->l('When enabled, the configured captcha provider is added to the PrestaShop employee login page. Legacy PrestaShop admin login is validated server-side before authentication.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
                 ],
                 'submit' => ['title' => $this->l('Save captcha activation')],
             ],
@@ -2087,6 +2228,105 @@ class Tec_spamguard extends Module
     private function isFormCaptchaEnabled($type)
     {
         return (int) Configuration::get(self::CONFIG_PREFIX . strtoupper((string) $type) . '_CAPTCHA') === 1;
+    }
+
+    /**
+     * Check if captcha protection is enabled for back-office login.
+     *
+     * @return bool
+     */
+    private function isAdminLoginCaptchaEnabled()
+    {
+        return (int) Configuration::get(self::CONFIG_PREFIX . 'ADMIN_LOGIN_CAPTCHA') === 1;
+    }
+
+    /**
+     * Check if back-office login captcha is enabled and visible.
+     *
+     * @return bool
+     */
+    private function isAdminLoginCaptchaReady()
+    {
+        return $this->isAdminLoginCaptchaEnabled()
+            && $this->isHookRegisteredForModule('displayAdminLogin');
+    }
+
+    /**
+     * Ensure the hooks required by back-office login captcha are registered.
+     *
+     * @return bool
+     */
+    private function ensureAdminLoginHooks()
+    {
+        return $this->ensureHookRegistration('displayAdminLogin')
+            && $this->ensureHookRegistration('actionAdminLoginControllerLoginBefore');
+    }
+
+    /**
+     * Register the module on a hook and force the hook_module mapping if needed.
+     *
+     * @param string $hookName Hook name
+     *
+     * @return bool
+     */
+    private function ensureHookRegistration($hookName)
+    {
+        $this->registerHook((string) $hookName);
+
+        $idHook = (int) Hook::getIdByName((string) $hookName);
+        $idModule = (int) Module::getModuleIdByName($this->name);
+        if ($idHook <= 0 || $idModule <= 0) {
+            return false;
+        }
+
+        $shopIds = Shop::getShops(false, null, true);
+        if (!is_array($shopIds) || empty($shopIds)) {
+            $shopIds = [(int) Context::getContext()->shop->id ?: 1];
+        }
+
+        $ok = true;
+        foreach ($shopIds as $idShop) {
+            $exists = (bool) Db::getInstance()->getValue(
+                'SELECT 1 FROM `' . _DB_PREFIX_ . 'hook_module`
+                 WHERE `id_hook` = ' . $idHook . '
+                   AND `id_module` = ' . $idModule . '
+                   AND `id_shop` = ' . (int) $idShop
+            );
+            if ($exists) {
+                continue;
+            }
+
+            $ok = $ok && Db::getInstance()->insert('hook_module', [
+                'id_module' => $idModule,
+                'id_hook' => $idHook,
+                'id_shop' => (int) $idShop,
+                'position' => 1,
+            ], false, true, Db::INSERT_IGNORE);
+        }
+
+        return (bool) $ok;
+    }
+
+    /**
+     * Check whether this module is registered on a hook.
+     *
+     * @param string $hookName Hook name
+     *
+     * @return bool
+     */
+    private function isHookRegisteredForModule($hookName)
+    {
+        $idHook = (int) Hook::getIdByName((string) $hookName);
+        $idModule = (int) Module::getModuleIdByName($this->name);
+        if ($idHook <= 0 || $idModule <= 0) {
+            return false;
+        }
+
+        return (bool) Db::getInstance()->getValue(
+            'SELECT 1 FROM `' . _DB_PREFIX_ . 'hook_module`
+             WHERE `id_hook` = ' . $idHook . '
+               AND `id_module` = ' . $idModule
+        );
     }
 
     /**

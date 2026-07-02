@@ -120,7 +120,7 @@
 <h2>Features</h2>
 <ul>
 <li>Captcha providers: Google reCAPTCHA v2, Google reCAPTCHA v3, Cloudflare Turnstile, ALTCHA, and ALTCHA Sentinel.</li>
-<li>Per-form captcha switches for Contact, Register, Login, Checkout identity, and Forgot password.</li>
+<li>Per-form captcha switches for Contact, Register, Login, Checkout identity, Forgot password, and the PrestaShop back-office login page.</li>
 <li>Optional checkout captcha switch: checkout registration and login follow the normal Register and Login captcha settings only when checkout captcha is enabled.</li>
 <li>Optional captcha bypass for logged-in customers.</li>
 <li>Email validation for Contact and Register by default, with optional validation on Login and Forgot password.</li>
@@ -159,6 +159,7 @@
 <li><code>Captcha on registration form</code> controls registration captcha globally.</li>
 <li><code>Captcha on login form</code> controls login captcha globally.</li>
 <li><code>Captcha during checkout</code> decides whether those Register and Login captcha settings also apply inside the checkout.</li>
+<li><code>Captcha on back-office login</code> adds the configured captcha provider to the PrestaShop employee login page. Legacy PrestaShop admin login flows are validated server-side before authentication; PrestaShop 9 renders the captcha on the Symfony login page and relies on the browser-side gate because the core authenticator handles the POST before legacy module hooks.</li>
 </ul>
 <p>If <code>Captcha during checkout</code> is disabled, the checkout does not ask for captcha on registration or login, even if the normal Register or Login captcha settings are enabled. This affects only captcha. Email validation remains independent and still runs when the related Register or Login email validation switch is enabled.</p>
 <p>The <code>Skip captcha for logged-in customers</code> option can be enabled to avoid asking authenticated customers to solve captcha challenges. This is useful on account, checkout, and contact flows where a logged-in customer has already passed the shop authentication step. This option only skips captcha; email validation and message validation continue to run when enabled.</p>
@@ -250,7 +251,9 @@
 <p>The module is implemented through standard PrestaShop extension points:</p>
 <ul>
 <li><code>displayHeader</code> loads the front-office JavaScript and captcha provider script only on pages that may contain protected forms.</li>
+<li><code>displayAdminLogin</code> injects the configured captcha provider into the PrestaShop employee login page when back-office login captcha is enabled.</li>
 <li><code>actionDispatcher</code> detects submitted native forms before the target front controller processes the request.</li>
+<li><code>actionAdminLoginControllerLoginBefore</code> validates the back-office login captcha on legacy PrestaShop admin login flows before employee authentication.</li>
 <li><code>actionContactFormSubmitBefore</code> and <code>actionSubmitAccountBefore</code> are used as native hook fallbacks where PrestaShop exposes them.</li>
 <li>A dedicated <code>altchachallenge</code> module front controller generates local ALTCHA challenges.</li>
 <li>Small form descriptor classes identify supported forms and read submitted values without coupling the validators to a specific controller implementation.</li>

@@ -69,6 +69,8 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_173eaccc9acedc60d3211831264f6
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b0ab0ed9a5d0743e114339c9fd817216'] = 'Salta il captcha per i clienti connessi';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_1da28ae572a970d5600d3420c5c39fe3'] = 'Se abilitato, ai clienti connessi non viene richiesto di risolvere le challenge captcha.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_cf1fb11f13b6a6c57b4ef86331650ae8'] = 'Captcha sul modulo di recupero password';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_fca2b430c093cbb34b88b2edf8ea808a'] = 'Captcha sul login del back office';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_1aaaa0b3ffae0444a198c6552c925893'] = 'Se abilitato, il provider captcha configurato viene aggiunto alla pagina di login dipendente di PrestaShop. Il login admin legacy di PrestaShop viene validato lato server prima dell\'autenticazione.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_aba805b1d7861ba0b8819262040674ef'] = 'Salva attivazione captcha';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_c2d47174e2023584add4440c8f10808a'] = 'Validazione email sul modulo di contatto';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_24221eb096acb2e225d0a32857c30609'] = 'Validazione email sul modulo di registrazione';
@@ -148,3 +150,5 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_8524de963f07201e5c086830d3707
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_9052b69e5dc301ccc08d690df66cfb7f'] = 'Verifica richiesta!';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_59cfce439d1b04f0d4e00fbb32e89baf'] = 'Verifica in corso... attendere.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_a5dbd95641637b7523591d60552384ea'] = 'Protetto da Tec Spam Guard';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_084002272f9b797f6885f3852ec4e8d3'] = 'Completa la verifica antispam prima di accedere.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_db61152d3017e218996eb1a230f927ad'] = 'Completa la verifica antispam aggiuntiva prima di accedere.';

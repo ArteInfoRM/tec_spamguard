@@ -77,6 +77,8 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_173eaccc9acedc60d3211831264f6
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b0ab0ed9a5d0743e114339c9fd817216'] = 'Skip captcha for logged-in customers';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_1da28ae572a970d5600d3420c5c39fe3'] = 'When enabled, logged-in customers are not asked to solve captcha challenges.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_cf1fb11f13b6a6c57b4ef86331650ae8'] = 'Captcha on password reset form';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_fca2b430c093cbb34b88b2edf8ea808a'] = 'Captcha on back-office login';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_1aaaa0b3ffae0444a198c6552c925893'] = 'When enabled, the configured captcha provider is added to the PrestaShop employee login page. Legacy PrestaShop admin login is validated server-side before authentication.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_aba805b1d7861ba0b8819262040674ef'] = 'Save captcha activation';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_c2d47174e2023584add4440c8f10808a'] = 'Email validation on contact form';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_24221eb096acb2e225d0a32857c30609'] = 'Email validation on registration form';
@@ -148,3 +150,5 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_8524de963f07201e5c086830d3707
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_9052b69e5dc301ccc08d690df66cfb7f'] = 'Verification required!';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_59cfce439d1b04f0d4e00fbb32e89baf'] = 'Verifying... please wait.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_a5dbd95641637b7523591d60552384ea'] = 'Protected by Tec Spam Guard';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_084002272f9b797f6885f3852ec4e8d3'] = 'Complete the antispam verification before logging in.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_db61152d3017e218996eb1a230f927ad'] = 'Complete the additional antispam verification before logging in.';

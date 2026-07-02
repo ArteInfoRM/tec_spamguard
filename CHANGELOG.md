@@ -2,6 +2,21 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.0.4] - 2026-07-02
+### Added
+- Added an optional **Captcha on back-office login** switch that injects the configured captcha provider into the PrestaShop employee login page.
+- Added legacy admin login server-side validation through `actionAdminLoginControllerLoginBefore`, with AJAX-friendly errors for blocked login attempts.
+- Added `upgrade-1.0.4.php` to initialize the new setting disabled and register the new admin login hooks on existing installations.
+
+### Changed
+- Updated README implementation notes to document `displayAdminLogin` and the back-office login captcha behavior.
+
+### Fixed
+- Fixed legacy PrestaShop back-office AJAX login submissions so the solved captcha token is included in the manual `AdminLogin` request payload.
+- Fixed reCAPTCHA v3 fallback handling on the back-office login page so low-score attempts can render and submit the configured visible fallback captcha.
+- Fixed back-office reCAPTCHA v3 normal-score submissions by generating a fresh final token after the pre-check, avoiding reuse of the token already verified by Google.
+
+---
 ## [1.0.3] - 2026-07-01
 ### Added
 - Added an AJAX pre-check fallback flow for reCAPTCHA v3 so a visible configured captcha can be shown when the v3 score is too low.
