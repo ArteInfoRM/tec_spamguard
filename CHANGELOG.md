@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.0.9] - 2026-07-03
+### Fixed
+- Fixed coding standard warnings in GeoIP reader imports and file-level spacing.
+
+---
 ## [1.0.8] - 2026-07-03
 ### Added
 - Added optional failed validation logging with configurable retention, plus separate switches for issued captcha and successful validation logging.

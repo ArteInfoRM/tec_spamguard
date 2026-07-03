@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 2009-2026 Tecnoacquisti.com
  *
@@ -7,8 +8,11 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.8
+ * @version   1.0.9
  */
+
+use GeoIp2\Database\Reader as GeoIp2Reader;
+use MaxMind\Db\Reader as MaxMindDbReader;
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
 use TecSpamGuard\Captcha\CaptchaProviderInterface;
@@ -50,7 +54,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.8';
+        $this->version = '1.0.9';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -2279,8 +2283,8 @@ class Tec_spamguard extends Module
         }
 
         try {
-            if (class_exists('\\GeoIp2\\Database\\Reader')) {
-                $reader = new \GeoIp2\Database\Reader($databasePath);
+            if (class_exists(GeoIp2Reader::class)) {
+                $reader = new GeoIp2Reader($databasePath);
                 $record = $reader->city($ip);
                 $parts = array_filter([
                     isset($record->city->name) ? (string) $record->city->name : '',
@@ -2289,8 +2293,8 @@ class Tec_spamguard extends Module
 
                 return Tools::substr(implode(', ', $parts), 0, 128);
             }
-            if (class_exists('\\MaxMind\\Db\\Reader')) {
-                $reader = new \MaxMind\Db\Reader($databasePath);
+            if (class_exists(MaxMindDbReader::class)) {
+                $reader = new MaxMindDbReader($databasePath);
                 $record = $reader->get($ip);
                 if (is_array($record)) {
                     $city = isset($record['city']['names']['en']) ? (string) $record['city']['names']['en'] : '';
