@@ -20,6 +20,7 @@ Tec Spam Guard by Tecnoacquisti.com® protects contact, registration, login, che
 - Manual back-office update for the local disposable email domain list from `https://disposable.github.io/disposable-email-domains/domains_mx.txt`, with validation and timestamped backup.
 - Manual blocked email addresses, blocked domains, and wildcard email patterns.
 - Contact message validation with blocked words or phrases and a maximum link count.
+- Optional validation log with configurable retention and a back-office list for failed, issued, and optionally passed captcha, email, and message validations.
 - Masked secret fields in the back office so existing credentials are not exposed or accidentally cleared.
 - Back-office captcha key test button for Google reCAPTCHA, Cloudflare Turnstile, ALTCHA, and ALTCHA Sentinel.
 - Server-side validation for all module configuration fields before values are saved.
@@ -71,6 +72,8 @@ Email validation is independent from captcha. When enabled for a form, the modul
 The same Email validation tab also includes `Discouraged email domains`. This list is advisory, not blocking. When `Show warning for discouraged email domains` is enabled and a customer uses one of those domains on a protected email-validation form, the front office shows a confirmation popup explaining that the address often has delivery problems and recommending another email address. If the customer confirms, the form can still be submitted. The default advisory list is `libero.it`, `virgilio.it`, `tiscali.it`, `tin.it`, `t-online.de`, `aol.com`, `tim.it`, `aruba.it`, `outlook.it`, `outlook.com`, `hotmail.com`, `live.it`, and `live.com`.
 
 Contact message validation is also independent from captcha. It can block configured words or phrases and reject contact messages with too many links.
+
+The Validation logs tab can store failed captcha, email, and message validation attempts. Issued captcha challenges and successful validations can also be logged with separate opt-in switches. Logged entries include the IP address, optional location when the PrestaShop GeoLite2-City database is available, the validation result, the form where a captcha was issued or where validation failed or passed, the attempted email for email validation attempts, the user agent, and the date. The message text itself is not stored.
 
 The bundled disposable email domain file can be reviewed from the Information tab in the back office. The same tab also includes a manual update button that downloads the maintained `domains_mx.txt` list from `disposable.github.io`, validates the downloaded domains, creates a timestamped backup of the current local file, and then replaces `data/disposable_domains.txt`. The module keeps the 5 most recent disposable-domain backups and removes older backup files automatically after a successful update.
 

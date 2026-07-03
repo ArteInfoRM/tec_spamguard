@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.7
+ * @version   1.0.8
  */
 use TecSpamGuard\Captcha\AltchaProvider;
 use TecSpamGuard\Captcha\AltchaSentinelProvider;
@@ -32,6 +32,8 @@ class Tec_spamguard extends Module
     public const CONFIG_PREFIX = 'TEC_SPAMGUARD_';
     public const DISPOSABLE_DOMAINS_SOURCE_URL = 'https://disposable.github.io/disposable-email-domains/domains_mx.txt';
     public const DISPOSABLE_DOMAINS_BACKUP_LIMIT = 5;
+    public const VALIDATION_LOG_TABLE = 'tec_spamguard_validation_log';
+    public const VALIDATION_LOG_RETENTION_DEFAULT_DAYS = 30;
     public const DEFAULT_DISCOURAGED_EMAIL_DOMAINS = "libero.it\nvirgilio.it\ntiscali.it\ntin.it\nt-online.de\naol.com\ntim.it\naruba.it\noutlook.it\noutlook.com\nhotmail.com\nlive.it\nlive.com";
 
     /**
@@ -48,7 +50,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.7';
+        $this->version = '1.0.8';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -77,7 +79,9 @@ class Tec_spamguard extends Module
                 'actionContactFormSubmitBefore',
                 'actionSubmitAccountBefore',
             ])
-            && $this->installDefaults();
+            && $this->installDefaults()
+            && $this->installValidationLogSchema()
+            && $this->installAdminTab();
     }
 
     /**
@@ -91,7 +95,9 @@ class Tec_spamguard extends Module
             Configuration::deleteByName($key);
         }
 
-        return parent::uninstall();
+        return $this->uninstallAdminTab()
+            && $this->uninstallValidationLogSchema()
+            && parent::uninstall();
     }
 
     /**
@@ -105,6 +111,7 @@ class Tec_spamguard extends Module
             $this->ajaxTestCaptchaKeys();
         }
 
+        $this->ensureValidationLogInfrastructure();
         $this->context->controller->addCSS($this->_path . 'views/css/back.css');
 
         $output = '';
@@ -125,6 +132,9 @@ class Tec_spamguard extends Module
         }
         if (Tools::isSubmit('submitTecSpamGuardMessageValidation')) {
             $output .= $this->postProcessMessageValidationConfiguration();
+        }
+        if (Tools::isSubmit('submitTecSpamGuardValidationLogs')) {
+            $output .= $this->postProcessValidationLogsConfiguration();
         }
 
         return $output . $this->renderConfigurationTabs();
@@ -182,6 +192,10 @@ class Tec_spamguard extends Module
 
         if (empty($forms) && empty($emailAdvisoryForms)) {
             return '';
+        }
+
+        if ($provider instanceof CaptchaProviderInterface && !empty($forms)) {
+            $this->logIssuedCaptchas($this->getIssuedCaptchaLogLocations($forms));
         }
 
         $this->context->controller->registerJavascript(
@@ -325,6 +339,8 @@ class Tec_spamguard extends Module
             'tec_spamguard_admin_message' => $this->l('Complete the antispam verification before logging in.'),
         ]);
 
+        $this->logIssuedCaptchas(['admin_login']);
+
         return $this->display(__FILE__, 'views/templates/hook/admin_login.tpl');
     }
 
@@ -346,8 +362,11 @@ class Tec_spamguard extends Module
 
         $error = $this->validateCaptcha('admin_login');
         if ($error === '') {
+            $this->logPassedValidation('admin_login', 'captcha');
+
             return;
         }
+        $this->logFailedValidation('admin_login', 'captcha');
 
         if (isset($params['controller']) && is_object($params['controller']) && property_exists($params['controller'], 'errors')) {
             $params['controller']->errors[] = $error;
@@ -677,6 +696,236 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Install or update the validation log table.
+     *
+     * @return bool
+     */
+    public function installValidationLogSchema()
+    {
+        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::VALIDATION_LOG_TABLE . '` (
+            `id_tec_spamguard_validation_log` int(10) unsigned NOT NULL AUTO_INCREMENT,
+            `ip_address` varchar(45) NOT NULL DEFAULT \'\',
+            `location` varchar(128) NOT NULL DEFAULT \'\',
+            `validation_result` varchar(16) NOT NULL DEFAULT \'failed\',
+            `issued_location` varchar(64) NOT NULL DEFAULT \'\',
+            `passed_location` varchar(64) NOT NULL DEFAULT \'\',
+            `captcha_location` varchar(64) NOT NULL DEFAULT \'\',
+            `email_location` varchar(64) NOT NULL DEFAULT \'\',
+            `attempted_email` varchar(255) NOT NULL DEFAULT \'\',
+            `message_location` varchar(64) NOT NULL DEFAULT \'\',
+            `user_agent` varchar(512) NOT NULL DEFAULT \'\',
+            `date_add` datetime NOT NULL,
+            PRIMARY KEY (`id_tec_spamguard_validation_log`),
+            KEY `idx_ip_address` (`ip_address`),
+            KEY `idx_date_add` (`date_add`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
+
+        return (bool) Db::getInstance()->execute($sql)
+            && $this->ensureValidationLogColumn('validation_result', 'ALTER TABLE `' . _DB_PREFIX_ . self::VALIDATION_LOG_TABLE . '` ADD `validation_result` varchar(16) NOT NULL DEFAULT \'failed\' AFTER `location`')
+            && $this->ensureValidationLogColumn('issued_location', 'ALTER TABLE `' . _DB_PREFIX_ . self::VALIDATION_LOG_TABLE . '` ADD `issued_location` varchar(64) NOT NULL DEFAULT \'\' AFTER `validation_result`')
+            && $this->ensureValidationLogColumn('passed_location', 'ALTER TABLE `' . _DB_PREFIX_ . self::VALIDATION_LOG_TABLE . '` ADD `passed_location` varchar(64) NOT NULL DEFAULT \'\' AFTER `issued_location`');
+    }
+
+    /**
+     * Add a validation log column when it is missing.
+     *
+     * @param string $column Column name
+     * @param string $sql Alter table statement
+     *
+     * @return bool
+     */
+    private function ensureValidationLogColumn($column, $sql)
+    {
+        $exists = (bool) Db::getInstance()->getValue(
+            'SELECT COUNT(*)
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = \'' . pSQL(_DB_PREFIX_ . self::VALIDATION_LOG_TABLE) . '\'
+               AND COLUMN_NAME = \'' . pSQL((string) $column) . '\''
+        );
+        if ($exists) {
+            return true;
+        }
+
+        return (bool) Db::getInstance()->execute($sql);
+    }
+
+    /**
+     * Drop the validation log table.
+     *
+     * @return bool
+     */
+    public function uninstallValidationLogSchema()
+    {
+        return (bool) Db::getInstance()->execute(
+            'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . self::VALIDATION_LOG_TABLE . '`'
+        );
+    }
+
+    /**
+     * Install the back-office menu entries used by the module controllers.
+     *
+     * @return bool
+     */
+    public function installAdminTab()
+    {
+        $parentId = $this->installOrUpdateAdminTab(
+            'AdminTecSpamGuardSpamProtection',
+            $this->l('Spam Protection'),
+            $this->getConfigureMenuParentId(),
+            true,
+            'security'
+        );
+
+        if ($parentId <= 0) {
+            return false;
+        }
+
+        $configId = $this->installOrUpdateAdminTab(
+            'AdminTecSpamGuardConfigure',
+            $this->l('Configure module'),
+            $parentId,
+            true,
+            ''
+        );
+        $logsId = $this->installOrUpdateAdminTab(
+            'AdminTecSpamGuardValidationLogs',
+            $this->l('View logs'),
+            $parentId,
+            true,
+            ''
+        );
+
+        $this->setAdminTabPosition($configId, 0);
+        $this->setAdminTabPosition($logsId, 1);
+
+        return $configId > 0 && $logsId > 0;
+    }
+
+    /**
+     * Ensure validation log dependencies exist for already installed modules.
+     *
+     * @return void
+     */
+    private function ensureValidationLogInfrastructure()
+    {
+        $this->installValidationLogSchema();
+        $this->installAdminTab();
+    }
+
+    /**
+     * Remove the back-office menu entries used by the module controllers.
+     *
+     * @return bool
+     */
+    public function uninstallAdminTab()
+    {
+        $result = true;
+        $classNames = [
+            'AdminTecSpamGuardConfigure',
+            'AdminTecSpamGuardValidationLogs',
+            'AdminTecSpamGuardSpamProtection',
+        ];
+
+        foreach ($classNames as $className) {
+            $idTab = $this->getAdminTabIdByClassName($className);
+            if ($idTab <= 0) {
+                continue;
+            }
+
+            $tab = new Tab($idTab);
+            $result = (bool) $tab->delete() && $result;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Install or update one admin tab.
+     *
+     * @param string $className Controller class name
+     * @param string $name Menu label
+     * @param int $idParent Parent tab ID
+     * @param bool $active Whether the tab is visible
+     * @param string $icon Optional material icon
+     *
+     * @return int
+     */
+    private function installOrUpdateAdminTab($className, $name, $idParent, $active, $icon)
+    {
+        $idTab = $this->getAdminTabIdByClassName($className);
+        $tab = $idTab > 0 ? new Tab($idTab) : new Tab();
+        $tab->active = (bool) $active;
+        $tab->class_name = (string) $className;
+        $tab->id_parent = (int) $idParent;
+        $tab->module = $this->name;
+
+        if (property_exists($tab, 'icon')) {
+            $tab->icon = (string) $icon;
+        }
+
+        foreach (Language::getLanguages(false) as $language) {
+            $tab->name[(int) $language['id_lang']] = (string) $name;
+        }
+
+        $result = $idTab > 0 ? $tab->update() : $tab->add();
+
+        return $result ? (int) $tab->id : 0;
+    }
+
+    /**
+     * Set a fixed position for an admin tab.
+     *
+     * @param int $idTab Tab ID
+     * @param int $position Position
+     *
+     * @return bool
+     */
+    private function setAdminTabPosition($idTab, $position)
+    {
+        if ((int) $idTab <= 0) {
+            return false;
+        }
+
+        return (bool) Db::getInstance()->update(
+            'tab',
+            ['position' => (int) $position],
+            'id_tab = ' . (int) $idTab
+        );
+    }
+
+    /**
+     * Return the back-office Configure root tab ID.
+     *
+     * @return int
+     */
+    private function getConfigureMenuParentId()
+    {
+        $configureId = $this->getAdminTabIdByClassName('CONFIGURE');
+        if ($configureId > 0) {
+            return $configureId;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Return an admin tab ID by class name.
+     *
+     * @param string $className Controller class name
+     *
+     * @return int
+     */
+    private function getAdminTabIdByClassName($className)
+    {
+        return (int) Db::getInstance()->getValue(
+            'SELECT id_tab
+             FROM `' . _DB_PREFIX_ . 'tab`
+             WHERE class_name = "' . pSQL((string) $className) . '"'
+        );
+    }
+
+    /**
      * Return default module configuration.
      *
      * @return array
@@ -721,6 +970,10 @@ class Tec_spamguard extends Module
             self::CONFIG_PREFIX . 'ALTCHA_HIDE_LOGO' => 0,
             self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_URL' => '',
             self::CONFIG_PREFIX . 'ALTCHA_SENTINEL_API_KEY' => '',
+            self::CONFIG_PREFIX . 'LOG_FAILED_VALIDATIONS' => 0,
+            self::CONFIG_PREFIX . 'LOG_ISSUED_CAPTCHAS' => 0,
+            self::CONFIG_PREFIX . 'LOG_PASSED_VALIDATIONS' => 0,
+            self::CONFIG_PREFIX . 'LOG_RETENTION_DAYS' => self::VALIDATION_LOG_RETENTION_DEFAULT_DAYS,
         ];
     }
 
@@ -1163,6 +1416,40 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Save validation log configuration.
+     *
+     * @return string
+     */
+    private function postProcessValidationLogsConfiguration()
+    {
+        $enabled = (int) Tools::getValue(self::CONFIG_PREFIX . 'LOG_FAILED_VALIDATIONS');
+        if (!in_array($enabled, [0, 1], true)) {
+            return $this->displayError($this->l('Invalid switch value.'));
+        }
+        $issuedEnabled = (int) Tools::getValue(self::CONFIG_PREFIX . 'LOG_ISSUED_CAPTCHAS');
+        if (!in_array($issuedEnabled, [0, 1], true)) {
+            return $this->displayError($this->l('Invalid switch value.'));
+        }
+        $passedEnabled = (int) Tools::getValue(self::CONFIG_PREFIX . 'LOG_PASSED_VALIDATIONS');
+        if (!in_array($passedEnabled, [0, 1], true)) {
+            return $this->displayError($this->l('Invalid switch value.'));
+        }
+
+        $retentionDays = (int) Tools::getValue(self::CONFIG_PREFIX . 'LOG_RETENTION_DAYS');
+        if ($retentionDays < 1 || $retentionDays > 3650) {
+            return $this->displayError($this->l('Validation log retention must be between 1 and 3650 days.'));
+        }
+
+        Configuration::updateValue(self::CONFIG_PREFIX . 'LOG_FAILED_VALIDATIONS', $enabled);
+        Configuration::updateValue(self::CONFIG_PREFIX . 'LOG_ISSUED_CAPTCHAS', $issuedEnabled);
+        Configuration::updateValue(self::CONFIG_PREFIX . 'LOG_PASSED_VALIDATIONS', $passedEnabled);
+        Configuration::updateValue(self::CONFIG_PREFIX . 'LOG_RETENTION_DAYS', $retentionDays);
+        $this->cleanupValidationLogs();
+
+        return $this->displayConfirmation($this->l('Settings updated.'));
+    }
+
+    /**
      * Render the configuration form.
      *
      * @return string
@@ -1226,6 +1513,16 @@ class Tec_spamguard extends Module
                 ),
             ],
             [
+                'id' => 'validation-logs',
+                'title' => $this->l('Validation logs'),
+                'icon' => 'icon-list',
+                'active' => $activeTabId === 'validation-logs',
+                'form' => $this->renderConfigurationForm(
+                    'submitTecSpamGuardValidationLogs',
+                    $this->getValidationLogsFormDefinition()
+                ),
+            ],
+            [
                 'id' => 'information',
                 'title' => $this->l('Information'),
                 'icon' => 'icon-info-circle',
@@ -1278,6 +1575,9 @@ class Tec_spamguard extends Module
         }
         if (Tools::isSubmit('submitTecSpamGuardMessageValidation')) {
             return 'message-validation';
+        }
+        if (Tools::isSubmit('submitTecSpamGuardValidationLogs')) {
+            return 'validation-logs';
         }
 
         return 'captcha-service';
@@ -1586,6 +1886,56 @@ class Tec_spamguard extends Module
     }
 
     /**
+     * Return validation log form definition.
+     *
+     * @return array
+     */
+    private function getValidationLogsFormDefinition()
+    {
+        return [
+            'form' => [
+                'legend' => ['title' => $this->l('Validation logs'), 'icon' => 'icon-list'],
+                'input' => [
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Log failed validations'),
+                        'name' => self::CONFIG_PREFIX . 'LOG_FAILED_VALIDATIONS',
+                        'is_bool' => true,
+                        'desc' => $this->l('When enabled, the module stores failed captcha, email, and message validation attempts.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Log issued captchas'),
+                        'name' => self::CONFIG_PREFIX . 'LOG_ISSUED_CAPTCHAS',
+                        'is_bool' => true,
+                        'desc' => $this->l('When enabled, the module stores captcha challenges that were rendered but have not been submitted yet.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Log passed validations'),
+                        'name' => self::CONFIG_PREFIX . 'LOG_PASSED_VALIDATIONS',
+                        'is_bool' => true,
+                        'desc' => $this->l('When enabled, the module also stores successful captcha, email, and message validations.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
+                    [
+                        'type' => 'text',
+                        'label' => $this->l('Keep log history'),
+                        'name' => self::CONFIG_PREFIX . 'LOG_RETENTION_DAYS',
+                        'class' => 'fixed-width-sm',
+                        'suffix' => $this->l('days'),
+                        'desc' => $this->l('Entries older than this value are removed when a new failed validation is logged or when settings are saved.'),
+                    ],
+                    ['type' => 'free', 'name' => self::CONFIG_PREFIX . 'VALIDATION_LOGS_LINK'],
+                ],
+                'submit' => ['title' => $this->l('Save validation log settings')],
+            ],
+        ];
+    }
+
+    /**
      * Return form values.
      *
      * @return array
@@ -1602,8 +1952,26 @@ class Tec_spamguard extends Module
             $values[$key] = $this->maskSecret((string) Configuration::get($key));
         }
         $values[self::CONFIG_PREFIX . 'CAPTCHA_TEST'] = $this->renderCaptchaTestButton();
+        $values[self::CONFIG_PREFIX . 'VALIDATION_LOGS_LINK'] = $this->renderValidationLogsLink();
 
         return $values;
+    }
+
+    /**
+     * Render a link to the validation log controller.
+     *
+     * @return string
+     */
+    private function renderValidationLogsLink()
+    {
+        $this->ensureValidationLogInfrastructure();
+
+        $this->context->smarty->assign([
+            'tec_spamguard_validation_logs_url' => $this->context->link->getAdminLink('AdminTecSpamGuardValidationLogs'),
+            'tec_spamguard_validation_logs_label' => $this->l('View validation logs'),
+        ]);
+
+        return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/validation_logs_link.tpl');
     }
 
     /**
@@ -1656,8 +2024,11 @@ class Tec_spamguard extends Module
         if ($this->isFormCaptchaEnabled($form->getType()) && $this->shouldProtectFormInCurrentContext($form->getType())) {
             $error = $this->validateCaptcha($form->getType());
             if ($error !== '') {
+                $this->logFailedValidation($form->getType(), 'captcha');
+
                 return $error;
             }
+            $this->logPassedValidation($form->getType(), 'captcha');
         }
 
         if ($this->isFormEmailValidationEnabled($form->getType()) && $form->getEmail() !== '') {
@@ -1669,8 +2040,11 @@ class Tec_spamguard extends Module
                 dirname(__FILE__) . '/data/disposable_domains.txt'
             );
             if (!$validator->isAllowed($form->getEmail())) {
+                $this->logFailedValidation($form->getType(), 'email', $form->getEmail());
+
                 return $this->getEmailValidationErrorMessage($form->getType());
             }
+            $this->logPassedValidation($form->getType(), 'email', $form->getEmail());
         }
 
         if ($this->isFormMessageValidationEnabled($form->getType()) && $form->getMessage() !== '') {
@@ -1679,8 +2053,254 @@ class Tec_spamguard extends Module
                 (int) Configuration::get(self::CONFIG_PREFIX . 'MAX_MESSAGE_LINKS')
             );
             if (!$validator->isAllowed($form->getMessage())) {
+                $this->logFailedValidation($form->getType(), 'message');
+
                 return $this->l('Please use another message.');
             }
+            $this->logPassedValidation($form->getType(), 'message');
+        }
+
+        return '';
+    }
+
+    /**
+     * Store a failed validation attempt when logging is enabled.
+     *
+     * @param string $formType Form or controller type
+     * @param string $failureType Failure type
+     * @param string $attemptedEmail Submitted email for email validation failures
+     *
+     * @return void
+     */
+    private function logFailedValidation($formType, $failureType, $attemptedEmail = '')
+    {
+        $this->logValidationAttempt($formType, $failureType, false, $attemptedEmail);
+    }
+
+    /**
+     * Store a passed validation attempt when logging is enabled.
+     *
+     * @param string $formType Form or controller type
+     * @param string $validationType Validation type
+     * @param string $attemptedEmail Submitted email for email validation attempts
+     *
+     * @return void
+     */
+    private function logPassedValidation($formType, $validationType, $attemptedEmail = '')
+    {
+        $this->logValidationAttempt($formType, $validationType, true, $attemptedEmail);
+    }
+
+    /**
+     * Store captcha issue events when logging is enabled.
+     *
+     * @param array $formTypes Form types receiving a captcha
+     *
+     * @return void
+     */
+    private function logIssuedCaptchas(array $formTypes)
+    {
+        if ((int) Configuration::get(self::CONFIG_PREFIX . 'LOG_ISSUED_CAPTCHAS') !== 1) {
+            return;
+        }
+
+        foreach (array_unique($formTypes) as $formType) {
+            $this->logValidationAttempt($formType, 'captcha', null);
+        }
+    }
+
+    /**
+     * Store a validation attempt when the matching logging option is enabled.
+     *
+     * @param string $formType Form or controller type
+     * @param string $validationType Validation type
+     * @param bool|null $passed Whether validation passed, or null for issued captcha
+     * @param string $attemptedEmail Submitted email for email validation attempts
+     *
+     * @return void
+     */
+    private function logValidationAttempt($formType, $validationType, $passed, $attemptedEmail = '')
+    {
+        if ($passed === null && (int) Configuration::get(self::CONFIG_PREFIX . 'LOG_ISSUED_CAPTCHAS') !== 1) {
+            return;
+        }
+        if ($passed === true && (int) Configuration::get(self::CONFIG_PREFIX . 'LOG_PASSED_VALIDATIONS') !== 1) {
+            return;
+        }
+        if ($passed === false && (int) Configuration::get(self::CONFIG_PREFIX . 'LOG_FAILED_VALIDATIONS') !== 1) {
+            return;
+        }
+
+        $formType = $this->normalizeValidationLogLocation($formType);
+        $validationType = (string) $validationType;
+        if (!in_array($validationType, ['captcha', 'email', 'message'], true)) {
+            return;
+        }
+
+        $ip = $this->getRequestIpAddress();
+        $isIssued = $passed === null;
+        $captchaLocation = $passed === false && $validationType === 'captcha' ? $formType : '';
+        $emailLocation = $passed === false && $validationType === 'email' ? $formType : '';
+        $messageLocation = $passed === false && $validationType === 'message' ? $formType : '';
+        $issuedLocation = $isIssued ? $formType : '';
+        $passedLocation = $passed === true ? $validationType . ':' . $formType : '';
+
+        Db::getInstance()->insert(self::VALIDATION_LOG_TABLE, [
+            'ip_address' => $ip,
+            'location' => $this->resolveIpLocation($ip),
+            'validation_result' => $isIssued ? 'issued' : ($passed ? 'passed' : 'failed'),
+            'issued_location' => $issuedLocation,
+            'passed_location' => $passedLocation,
+            'captcha_location' => $captchaLocation,
+            'email_location' => $emailLocation,
+            'attempted_email' => $validationType === 'email' ? $this->sanitizeValidationLogText($attemptedEmail, 255) : '',
+            'message_location' => $messageLocation,
+            'user_agent' => $this->sanitizeValidationLogText($this->getRequestUserAgent(), 512),
+            'date_add' => date('Y-m-d H:i:s'),
+        ]);
+        $this->cleanupValidationLogs();
+    }
+
+    /**
+     * Remove validation log entries older than the configured retention.
+     *
+     * @return void
+     */
+    private function cleanupValidationLogs()
+    {
+        $retentionDays = (int) Configuration::get(self::CONFIG_PREFIX . 'LOG_RETENTION_DAYS');
+        if ($retentionDays < 1) {
+            $retentionDays = self::VALIDATION_LOG_RETENTION_DEFAULT_DAYS;
+        }
+        $retentionDays = min($retentionDays, 3650);
+
+        Db::getInstance()->execute(
+            'DELETE FROM `' . _DB_PREFIX_ . self::VALIDATION_LOG_TABLE . '`
+             WHERE `date_add` < DATE_SUB(NOW(), INTERVAL ' . (int) $retentionDays . ' DAY)'
+        );
+    }
+
+    /**
+     * Normalize the location stored for validation failures.
+     *
+     * @param string $location Raw location
+     *
+     * @return string
+     */
+    private function normalizeValidationLogLocation($location)
+    {
+        $location = (string) $location;
+        if (in_array($location, ['contact', 'register', 'checkout_register', 'checkout_login', 'login', 'password', 'admin_login'], true)) {
+            return $location;
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * Return the captcha issue locations that should be logged.
+     *
+     * @param array $forms Protected form config
+     *
+     * @return array
+     */
+    private function getIssuedCaptchaLogLocations(array $forms)
+    {
+        $locations = [];
+        if (!empty($forms['register'])) {
+            $locations[] = $this->isCurrentControllerOrder() ? 'checkout_register' : 'register';
+        }
+        if (!empty($forms['login']) && $this->isCurrentControllerOrder()) {
+            $locations[] = 'checkout_login';
+        }
+
+        return $locations;
+    }
+
+    /**
+     * Return the current request IP address when valid.
+     *
+     * @return string
+     */
+    private function getRequestIpAddress()
+    {
+        $ip = trim((string) Tools::getRemoteAddr());
+        if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return '';
+        }
+
+        return $ip;
+    }
+
+    /**
+     * Return the current request user agent.
+     *
+     * @return string
+     */
+    private function getRequestUserAgent()
+    {
+        return isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+    }
+
+    /**
+     * Sanitize a text value before storing it in the validation log.
+     *
+     * @param string $value Raw value
+     * @param int $maxLength Maximum length
+     *
+     * @return string
+     */
+    private function sanitizeValidationLogText($value, $maxLength)
+    {
+        $value = preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) $value);
+        if (!is_string($value)) {
+            return '';
+        }
+
+        return Tools::substr(trim($value), 0, (int) $maxLength);
+    }
+
+    /**
+     * Resolve a readable IP location from the PrestaShop GeoLite2-City database when available.
+     *
+     * @param string $ip IP address
+     *
+     * @return string
+     */
+    private function resolveIpLocation($ip)
+    {
+        if ($ip === '') {
+            return '';
+        }
+
+        $databasePath = _PS_ROOT_DIR_ . '/app/Resources/geoip/GeoLite2-City.mmdb';
+        if (!is_file($databasePath)) {
+            return '';
+        }
+
+        try {
+            if (class_exists('\\GeoIp2\\Database\\Reader')) {
+                $reader = new \GeoIp2\Database\Reader($databasePath);
+                $record = $reader->city($ip);
+                $parts = array_filter([
+                    isset($record->city->name) ? (string) $record->city->name : '',
+                    isset($record->country->isoCode) ? (string) $record->country->isoCode : '',
+                ]);
+
+                return Tools::substr(implode(', ', $parts), 0, 128);
+            }
+            if (class_exists('\\MaxMind\\Db\\Reader')) {
+                $reader = new \MaxMind\Db\Reader($databasePath);
+                $record = $reader->get($ip);
+                if (is_array($record)) {
+                    $city = isset($record['city']['names']['en']) ? (string) $record['city']['names']['en'] : '';
+                    $country = isset($record['country']['iso_code']) ? (string) $record['country']['iso_code'] : '';
+
+                    return Tools::substr(implode(', ', array_filter([$city, $country])), 0, 128);
+                }
+            }
+        } catch (Exception $exception) {
+            unset($exception);
         }
 
         return '';

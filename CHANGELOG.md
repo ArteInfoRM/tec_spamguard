@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.0.8] - 2026-07-03
+### Added
+- Added optional failed validation logging with configurable retention, plus separate switches for issued captcha and successful validation logging.
+- Added a back-office validation log controller showing ID, IP, optional GeoLite2 location, failed validation location, attempted email for email validation failures, user agent, and date.
+- Added a visible back-office Spam Protection menu under Configure with module configuration and validation log links.
+
+---
 ## [1.0.7] - 2026-07-02
 ### Fixed
 - Removed the deleted admin-login-before hook registration and method while keeping admin login validation through `actionDispatcher`.
