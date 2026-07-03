@@ -27,6 +27,7 @@ class AdminTecSpamGuardValidationLogsController extends ModuleAdminController
         $this->list_id = self::VALIDATION_LOG_TABLE;
         $this->_orderBy = $this->identifier;
         $this->_orderWay = 'DESC';
+        $this->list_no_link = true;
 
         parent::__construct();
         $module = $this->getTecSpamGuardModule();
@@ -105,6 +106,46 @@ class AdminTecSpamGuardValidationLogsController extends ModuleAdminController
 
         $this->actions = [];
         $this->bulk_actions = [];
+    }
+
+    /**
+     * Redirect row edit attempts back to the read-only list.
+     *
+     * @return bool
+     */
+    public function processUpdate()
+    {
+        Tools::redirectAdmin($this->context->link->getAdminLink($this->controller_name));
+
+        return false;
+    }
+
+    /**
+     * Redirect add attempts back to the read-only list.
+     *
+     * @return bool
+     */
+    public function processAdd()
+    {
+        Tools::redirectAdmin($this->context->link->getAdminLink($this->controller_name));
+
+        return false;
+    }
+
+    /**
+     * Disable row edit links in legacy list rendering.
+     *
+     * @param string $token Controller token
+     * @param int $id Row ID
+     * @param string $name Row label
+     *
+     * @return string
+     */
+    public function displayEditLink($token = null, $id = null, $name = null)
+    {
+        unset($token, $id, $name);
+
+        return '';
     }
 
     /**

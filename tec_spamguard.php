@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.9
+ * @version   1.0.10
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -53,7 +53,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.9';
+        $this->version = '1.0.10';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -2036,10 +2036,10 @@ class Tec_spamguard extends Module
 
         if ($this->isFormEmailValidationEnabled($form->getType()) && $form->getEmail() !== '') {
             $validator = new EmailValidator(
-                $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_EMAILS')),
-                $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_DOMAINS')),
-                $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_EMAIL_PATTERNS')),
-                (int) Configuration::get(self::CONFIG_PREFIX . 'BLOCK_DISPOSABLE') === 1,
+                $this->getLines((string) $this->getConfigurationValue('BLOCKED_EMAILS')),
+                $this->getLines((string) $this->getConfigurationValue('BLOCKED_DOMAINS')),
+                $this->getLines((string) $this->getConfigurationValue('BLOCKED_EMAIL_PATTERNS')),
+                (int) $this->getConfigurationValue('BLOCK_DISPOSABLE') === 1,
                 dirname(__FILE__) . '/data/disposable_domains.txt'
             );
             if (!$validator->isAllowed($form->getEmail())) {
@@ -2052,8 +2052,8 @@ class Tec_spamguard extends Module
 
         if ($this->isFormMessageValidationEnabled($form->getType()) && $form->getMessage() !== '') {
             $validator = new MessageValidator(
-                $this->getLines((string) Configuration::get(self::CONFIG_PREFIX . 'BLOCKED_MESSAGE_TEXTS')),
-                (int) Configuration::get(self::CONFIG_PREFIX . 'MAX_MESSAGE_LINKS')
+                $this->getLines((string) $this->getConfigurationValue('BLOCKED_MESSAGE_TEXTS')),
+                (int) $this->getConfigurationValue('MAX_MESSAGE_LINKS')
             );
             if (!$validator->isAllowed($form->getMessage())) {
                 $this->logFailedValidation($form->getType(), 'message');
@@ -2198,6 +2198,26 @@ class Tec_spamguard extends Module
         }
 
         return 'unknown';
+    }
+
+    /**
+     * Return a configuration value with module defaults for missing multishop entries.
+     *
+     * @param string $suffix Configuration suffix without module prefix
+     *
+     * @return mixed
+     */
+    private function getConfigurationValue($suffix)
+    {
+        $key = self::CONFIG_PREFIX . (string) $suffix;
+        $value = Configuration::get($key);
+        if ($value !== false) {
+            return $value;
+        }
+
+        $defaults = $this->getDefaultConfiguration();
+
+        return isset($defaults[$key]) ? $defaults[$key] : false;
     }
 
     /**
@@ -2846,7 +2866,7 @@ class Tec_spamguard extends Module
      */
     private function isFormCaptchaEnabled($type)
     {
-        return (int) Configuration::get(self::CONFIG_PREFIX . strtoupper((string) $type) . '_CAPTCHA') === 1;
+        return (int) $this->getConfigurationValue(strtoupper((string) $type) . '_CAPTCHA') === 1;
     }
 
     /**
@@ -2988,7 +3008,7 @@ class Tec_spamguard extends Module
      */
     private function isFormEmailValidationEnabled($type)
     {
-        return (int) Configuration::get(self::CONFIG_PREFIX . strtoupper((string) $type) . '_EMAIL') === 1;
+        return (int) $this->getConfigurationValue(strtoupper((string) $type) . '_EMAIL') === 1;
     }
 
     /**
@@ -3030,7 +3050,7 @@ class Tec_spamguard extends Module
      */
     private function isFormMessageValidationEnabled($type)
     {
-        return (int) Configuration::get(self::CONFIG_PREFIX . strtoupper((string) $type) . '_MESSAGE') === 1;
+        return (int) $this->getConfigurationValue(strtoupper((string) $type) . '_MESSAGE') === 1;
     }
 
     /**

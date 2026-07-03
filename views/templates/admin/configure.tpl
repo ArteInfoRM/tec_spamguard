@@ -44,15 +44,6 @@
             <i class="icon-list-alt"></i>
             {l s='Open changelog' mod='tec_spamguard'}
         </a>
-        <a
-            class="btn btn-default"
-            href="{$module_dir|escape:'html':'UTF-8'}data/disposable_domains.txt"
-            target="_blank"
-            rel="noopener noreferrer"
-        >
-            <i class="icon-list"></i>
-            {l s='Open disposable email domain list' mod='tec_spamguard'}
-        </a>
         <form
             method="post"
             action="{$disposable_domains_update_url|escape:'html':'UTF-8'}"

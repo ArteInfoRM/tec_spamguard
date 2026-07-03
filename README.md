@@ -75,7 +75,7 @@ Contact message validation is also independent from captcha. It can block config
 
 The Validation logs tab can store failed captcha, email, and message validation attempts. Issued captcha challenges and successful validations can also be logged with separate opt-in switches. Logged entries include the IP address, optional location when the PrestaShop GeoLite2-City database is available, the validation result, the form where a captcha was issued or where validation failed or passed, the attempted email for email validation attempts, the user agent, and the date. The message text itself is not stored.
 
-The bundled disposable email domain file can be reviewed from the Information tab in the back office. The same tab also includes a manual update button that downloads the maintained `domains_mx.txt` list from `disposable.github.io`, validates the downloaded domains, creates a timestamped backup of the current local file, and then replaces `data/disposable_domains.txt`. The module keeps the 5 most recent disposable-domain backups and removes older backup files automatically after a successful update.
+The bundled disposable email domain file is stored as an internal module data file and is blocked from direct browser access. The Information tab includes a manual update button that downloads the maintained `domains_mx.txt` list from `disposable.github.io`, validates the downloaded domains, creates a timestamped backup of the current local file, and then replaces `data/disposable_domains.txt`. The module keeps the 5 most recent disposable-domain backups and removes older backup files automatically after a successful update.
 
 ## Captcha Notes
 

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.0.10] - 2026-07-03
+### Changed
+- Removed the back-office public link to the bundled disposable email domain list.
+- Updated the bundled disposable email domain list.
+
+### Fixed
+- Blocked direct browser access to internal disposable-domain data files.
+- Fixed missing multishop fallback for spam validation settings when a shop does not have shop-specific values.
+- Made validation log rows read-only to avoid empty edit pages from row clicks.
+
+---
 ## [1.0.9] - 2026-07-03
 ### Fixed
 - Fixed coding standard warnings in GeoIP reader imports and file-level spacing.
