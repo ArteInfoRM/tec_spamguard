@@ -89,7 +89,7 @@
                 if (form.querySelector('#send-reset-link')) {
                     return true;
                 }
-                if (form.querySelector('[name="submitLogin"], [name="SubmitLogin"], [name="password"], [name="submitNewsletter"], [name="s"]')) {
+                if (form.querySelector('[name="submitLogin"], [name="SubmitLogin"], [name="password"], [name="passwd"], [name="confirmation"], [name="token"], [name="id_customer"], [name="reset_token"], [name="submitNewsletter"], [name="s"]')) {
                     return false;
                 }
                 if (!form.querySelector('input[type="email"][name="email"], input[name="email"]')) {

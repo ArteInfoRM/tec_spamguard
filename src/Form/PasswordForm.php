@@ -23,7 +23,11 @@ class PasswordForm extends AbstractForm
     public function isSubmitted()
     {
         return $this->context->controller instanceof \PasswordController
-            && ($this->hasSubmit('email') || $this->hasSubmit('submit'));
+            && $this->hasSubmit('email')
+            && !$this->hasSubmit('token')
+            && !$this->hasSubmit('id_customer')
+            && !$this->hasSubmit('reset_token')
+            && !$this->hasSubmit('passwd');
     }
 
     public function getEmail()

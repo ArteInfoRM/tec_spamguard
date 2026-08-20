@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.0.10
+ * @version   1.1.0
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -36,6 +36,7 @@ class Tec_spamguard extends Module
     public const DISPOSABLE_DOMAINS_SOURCE_URL = 'https://disposable.github.io/disposable-email-domains/domains_mx.txt';
     public const DISPOSABLE_DOMAINS_BACKUP_LIMIT = 5;
     public const VALIDATION_LOG_TABLE = 'tec_spamguard_validation_log';
+    public const ALTCHA_REPLAY_TABLE = 'tec_spamguard_altcha_replay';
     public const VALIDATION_LOG_RETENTION_DEFAULT_DAYS = 30;
     public const DEFAULT_DISCOURAGED_EMAIL_DOMAINS = "libero.it\nvirgilio.it\ntiscali.it\ntin.it\nt-online.de\naol.com\ntim.it\naruba.it\noutlook.it\noutlook.com\nhotmail.com\nlive.it\nlive.com";
 
@@ -47,13 +48,20 @@ class Tec_spamguard extends Module
     private $captchaValidationResults = [];
 
     /**
+     * Whether the local ALTCHA replay registry is ready in this request.
+     *
+     * @var bool|null
+     */
+    private $altchaReplaySchemaReady;
+
+    /**
      * Module constructor.
      */
     public function __construct()
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.10';
+        $this->version = '1.1.0';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -84,6 +92,7 @@ class Tec_spamguard extends Module
             ])
             && $this->installDefaults()
             && $this->installValidationLogSchema()
+            && $this->installAltchaReplaySchema()
             && $this->installAdminTab();
     }
 
@@ -100,6 +109,7 @@ class Tec_spamguard extends Module
 
         return $this->uninstallAdminTab()
             && $this->uninstallValidationLogSchema()
+            && $this->uninstallAltchaReplaySchema()
             && parent::uninstall();
     }
 
@@ -763,6 +773,101 @@ class Tec_spamguard extends Module
         return (bool) Db::getInstance()->execute(
             'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . self::VALIDATION_LOG_TABLE . '`'
         );
+    }
+
+    /**
+     * Install the single-use local ALTCHA challenge registry.
+     *
+     * @return bool
+     */
+    public function installAltchaReplaySchema()
+    {
+        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::ALTCHA_REPLAY_TABLE . '` (
+            `challenge_hash` char(64) NOT NULL,
+            `expires_at` int(10) unsigned NOT NULL,
+            `date_add` datetime NOT NULL,
+            PRIMARY KEY (`challenge_hash`),
+            KEY `idx_expires_at` (`expires_at`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
+
+        return (bool) Db::getInstance()->execute($sql);
+    }
+
+    /**
+     * Drop the local ALTCHA challenge registry.
+     *
+     * @return bool
+     */
+    public function uninstallAltchaReplaySchema()
+    {
+        return (bool) Db::getInstance()->execute(
+            'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . self::ALTCHA_REPLAY_TABLE . '`'
+        );
+    }
+
+    /**
+     * Consume one successfully verified local ALTCHA challenge.
+     *
+     * The unique primary key makes concurrent replay attempts fail atomically.
+     *
+     * @param array $verificationResult Verified local ALTCHA payload metadata
+     *
+     * @return bool
+     */
+    private function consumeLocalAltchaChallenge(array $verificationResult)
+    {
+        $challengeHash = isset($verificationResult['challenge_hash']) ? (string) $verificationResult['challenge_hash'] : '';
+        $expiresAt = isset($verificationResult['expires_at']) ? (int) $verificationResult['expires_at'] : 0;
+        if (!preg_match('/^[a-f0-9]{64}$/', $challengeHash) || $expiresAt < time()) {
+            return false;
+        }
+
+        if (!$this->ensureAltchaReplaySchema()) {
+            return false;
+        }
+
+        try {
+            $db = Db::getInstance();
+            $db->execute(
+                'DELETE FROM `' . _DB_PREFIX_ . self::ALTCHA_REPLAY_TABLE . '` WHERE `expires_at` < ' . (int) time()
+            );
+
+            return (bool) $db->execute(
+                'INSERT INTO `' . _DB_PREFIX_ . self::ALTCHA_REPLAY_TABLE . '` (`challenge_hash`, `expires_at`, `date_add`)
+                 VALUES (\'' . pSQL($challengeHash) . '\', ' . (int) $expiresAt . ', NOW())'
+            );
+        } catch (Exception $exception) {
+            unset($exception);
+
+            return false;
+        }
+    }
+
+    /**
+     * Ensure that an existing installation has the local ALTCHA replay registry.
+     *
+     * @return bool
+     */
+    private function ensureAltchaReplaySchema()
+    {
+        if ($this->altchaReplaySchemaReady !== null) {
+            return $this->altchaReplaySchemaReady;
+        }
+
+        try {
+            $tableExists = (bool) Db::getInstance()->getValue(
+                'SELECT COUNT(*)
+                 FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = \'' . pSQL(_DB_PREFIX_ . self::ALTCHA_REPLAY_TABLE) . '\''
+            );
+            $this->altchaReplaySchemaReady = $tableExists || $this->installAltchaReplaySchema();
+        } catch (Exception $exception) {
+            unset($exception);
+            $this->altchaReplaySchemaReady = false;
+        }
+
+        return $this->altchaReplaySchemaReady;
     }
 
     /**
@@ -2379,6 +2484,10 @@ class Tec_spamguard extends Module
             $this->getCaptchaSecret(),
             Tools::getRemoteAddr()
         );
+        if (!empty($result['success']) && $provider->getId() === 'altcha'
+            && !$this->consumeLocalAltchaChallenge($result)) {
+            $result['success'] = false;
+        }
         $error = !empty($result['success']) ? '' : $this->getCaptchaValidationErrorMessage($provider);
         $this->captchaValidationResults[$formType] = $error;
 

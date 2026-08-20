@@ -118,6 +118,18 @@
 <hr>
 <h2>[Unreleased]</h2>
 <hr>
+<h2>[1.1.0] - 2026-08-20</h2>
+<h3>Security</h3>
+<ul>
+<li>Fixed local ALTCHA challenge signing to prevent the CVE-2025-68113 challenge-splicing vulnerability.</li>
+<li>Added an atomic, expiring single-use registry for local ALTCHA challenges to reject replayed solutions.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Restricted password-reset captcha validation to requests for a reset link; password confirmation submissions now bypass captcha validation.</li>
+<li>Automatically create the local ALTCHA replay registry on updated installations to prevent missing-table errors before the module upgrade runs.</li>
+</ul>
+<hr>
 <h2>[1.0.10] - 2026-07-03</h2>
 <h3>Changed</h3>
 <ul>

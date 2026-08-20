@@ -63,7 +63,7 @@ class AltchaProvider implements CaptchaProviderInterface
         $difficulty = max(1, min(3, (int) $difficulty));
         $maxNumber = [1 => 50000, 2 => 250000, 3 => 1000000][$difficulty];
         $number = random_int(0, $maxNumber);
-        $salt = bin2hex(random_bytes(12)) . '?expires=' . (time() + max(60, min(3600, (int) $expiresInSeconds)));
+        $salt = bin2hex(random_bytes(12)) . '?expires=' . (time() + max(60, min(3600, (int) $expiresInSeconds))) . '&';
         $challenge = hash('sha256', $salt . $number);
 
         return [
@@ -98,8 +98,11 @@ class AltchaProvider implements CaptchaProviderInterface
             return ['success' => false, 'errors' => ['invalid-algorithm']];
         }
 
-        $params = $this->extractSaltParams((string) $payload['salt']);
-        if (isset($params['expires']) && (int) $params['expires'] < time()) {
+        $expiresAt = $this->extractChallengeExpiry((string) $payload['salt']);
+        if ($expiresAt === null) {
+            return ['success' => false, 'errors' => ['invalid-expiry']];
+        }
+        if ($expiresAt < time()) {
             return ['success' => false, 'errors' => ['expired-challenge']];
         }
 
@@ -112,7 +115,12 @@ class AltchaProvider implements CaptchaProviderInterface
             return ['success' => false, 'errors' => ['invalid-solution']];
         }
 
-        return ['success' => true, 'errors' => []];
+        return [
+            'success' => true,
+            'errors' => [],
+            'challenge_hash' => hash('sha256', (string) $payload['challenge'] . '|' . (string) $payload['signature']),
+            'expires_at' => $expiresAt,
+        ];
     }
 
     public function testKeys($siteKey, $secret)
@@ -160,16 +168,17 @@ class AltchaProvider implements CaptchaProviderInterface
         return is_array($data) ? $data : null;
     }
 
-    private function extractSaltParams($salt)
+    private function extractChallengeExpiry($salt)
     {
         $parts = explode('?', (string) $salt, 2);
-        if (count($parts) < 2) {
-            return [];
+        if (count($parts) !== 2 || !preg_match('/^[a-f0-9]{24}$/', $parts[0])) {
+            return null;
         }
 
-        $params = [];
-        parse_str($parts[1], $params);
+        if (!preg_match('/^expires=([0-9]{10})&$/', $parts[1], $matches)) {
+            return null;
+        }
 
-        return $params;
+        return (int) $matches[1];
     }
 }

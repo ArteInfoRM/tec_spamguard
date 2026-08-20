@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.1.0] - 2026-08-20
+### Security
+- Fixed local ALTCHA challenge signing to prevent the CVE-2025-68113 challenge-splicing vulnerability.
+- Added an atomic, expiring single-use registry for local ALTCHA challenges to reject replayed solutions.
+
+### Fixed
+- Restricted password-reset captcha validation to requests for a reset link; password confirmation submissions now bypass captcha validation.
+- Automatically create the local ALTCHA replay registry on updated installations to prevent missing-table errors before the module upgrade runs.
+
+---
 ## [1.0.10] - 2026-07-03
 ### Changed
 - Removed the back-office public link to the bundled disposable email domain list.
