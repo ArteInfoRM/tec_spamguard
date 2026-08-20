@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.1.0
+ * @version   1.1.1
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -61,7 +61,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.0';
+        $this->version = '1.1.1';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -1565,6 +1565,11 @@ class Tec_spamguard extends Module
     private function renderConfigurationTabs()
     {
         $activeTabId = $this->getActiveConfigurationTabId();
+        $this->context->smarty->registerPlugin(
+            'function',
+            'tecSpamGuardRenderConfigurationTab',
+            [$this, 'renderConfigurationTab']
+        );
         $this->context->smarty->assign([
             'module_dir' => $this->_path,
             'module_display_name' => html_entity_decode($this->displayName, ENT_QUOTES, 'UTF-8'),
@@ -1585,68 +1590,89 @@ class Tec_spamguard extends Module
                 'title' => $this->l('Captcha service'),
                 'icon' => 'icon-key',
                 'active' => $activeTabId === 'captcha-service',
-                'form' => $this->renderConfigurationForm(
-                    'submitTecSpamGuardCaptchaService',
-                    $this->getCaptchaServiceFormDefinition()
-                ),
             ],
             [
                 'id' => 'captcha-forms',
                 'title' => $this->l('Captcha activation'),
                 'icon' => 'icon-check-square-o',
                 'active' => $activeTabId === 'captcha-forms',
-                'form' => $this->renderConfigurationForm(
-                    'submitTecSpamGuardCaptchaForms',
-                    $this->getCaptchaFormsFormDefinition()
-                ),
             ],
             [
                 'id' => 'email-validation',
                 'title' => $this->l('Email validation'),
                 'icon' => 'icon-envelope',
                 'active' => $activeTabId === 'email-validation',
-                'form' => $this->renderConfigurationForm(
-                    'submitTecSpamGuardEmailValidation',
-                    $this->getEmailValidationFormDefinition()
-                ),
             ],
             [
                 'id' => 'message-validation',
                 'title' => $this->l('Message validation'),
                 'icon' => 'icon-comment',
                 'active' => $activeTabId === 'message-validation',
-                'form' => $this->renderConfigurationForm(
-                    'submitTecSpamGuardMessageValidation',
-                    $this->getMessageValidationFormDefinition()
-                ),
             ],
             [
                 'id' => 'validation-logs',
                 'title' => $this->l('Validation logs'),
                 'icon' => 'icon-list',
                 'active' => $activeTabId === 'validation-logs',
-                'form' => $this->renderConfigurationForm(
-                    'submitTecSpamGuardValidationLogs',
-                    $this->getValidationLogsFormDefinition()
-                ),
             ],
             [
                 'id' => 'information',
                 'title' => $this->l('Information'),
                 'icon' => 'icon-info-circle',
                 'active' => $activeTabId === 'information',
-                'form' => $this->context->smarty->fetch($this->local_path . 'views/templates/admin/configure.tpl'),
             ],
         ];
 
         $this->context->smarty->assign([
             'tec_spamguard_config_tabs' => $tabs,
-            'tec_spamguard_credits' => $this->context->smarty->fetch(
-                $this->local_path . 'views/templates/admin/credits.tpl'
-            ),
         ]);
 
         return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/configuration_tabs.tpl');
+    }
+
+    /**
+     * Render trusted static or HelperForm configuration tab content.
+     *
+     * @param array $params Smarty function parameters
+     *
+     * @return string
+     */
+    public function renderConfigurationTab($params)
+    {
+        $tabId = isset($params['tabId']) ? (string) $params['tabId'] : '';
+        switch ($tabId) {
+            case 'captcha-service':
+                return $this->renderConfigurationForm(
+                    'submitTecSpamGuardCaptchaService',
+                    $this->getCaptchaServiceFormDefinition()
+                );
+            case 'captcha-forms':
+                return $this->renderConfigurationForm(
+                    'submitTecSpamGuardCaptchaForms',
+                    $this->getCaptchaFormsFormDefinition()
+                );
+            case 'email-validation':
+                return $this->renderConfigurationForm(
+                    'submitTecSpamGuardEmailValidation',
+                    $this->getEmailValidationFormDefinition()
+                );
+            case 'message-validation':
+                return $this->renderConfigurationForm(
+                    'submitTecSpamGuardMessageValidation',
+                    $this->getMessageValidationFormDefinition()
+                );
+            case 'validation-logs':
+                return $this->renderConfigurationForm(
+                    'submitTecSpamGuardValidationLogs',
+                    $this->getValidationLogsFormDefinition()
+                );
+            case 'information':
+                return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/configure.tpl');
+            case 'credits':
+                return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/credits.tpl');
+        }
+
+        return '';
     }
 
     /**

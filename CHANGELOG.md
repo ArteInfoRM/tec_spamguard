@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.1.1] - 2026-08-20
+### Security
+- Removed unescaped Smarty variables from the back-office configuration tabs and restricted tab content rendering to trusted module callbacks.
+
+---
 ## [1.1.0] - 2026-08-20
 ### Security
 - Fixed local ALTCHA challenge signing to prevent the CVE-2025-68113 challenge-splicing vulnerability.
