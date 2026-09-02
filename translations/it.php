@@ -2,7 +2,10 @@
 
 global $_MODULE;
 $_MODULE = [];
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b3b170914365d10c1cc5bebd2095b5ef'] = 'Abilita per B2B Request';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3047246c6cbb3e81dbff274d1ae65870'] = 'Se abilitato, registrazione e login B2B Request ereditano le rispettive impostazioni captcha e di validazione email.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_63ef1011260730b1e4d525a369498069'] = 'Tec Spam Guard';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_e749c5691dae5eaee39f3fee34bfc45b'] = 'Protegge dallo spam i moduli di contatto, account, recupero password e newsletter con captcha, validazione email e controllo dei messaggi.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_13e65a90581f7c4848e6d1a0affc2a3e'] = 'Protegge i moduli di contatto, registrazione, accesso e recupero password dallo spam con captcha, validazione email e controllo dei messaggi.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_77a840577c6f587edb28ad8200998180'] = 'Protezione Spam';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_6ba29216f217613f40982398b527568e'] = 'Configura modulo';
@@ -186,3 +189,11 @@ $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_44749712dbe
 $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_6ba29216f217613f40982398b527568e'] = 'Configura modulo';
 $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_d3b206d196cd6be3a2764c1fb90b200f'] = 'Elimina selezionati';
 $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_e25f0ecd41211b01c83e5fec41df4fe7'] = 'Eliminare gli elementi selezionati?';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_001bf5c7a1fa79f155cbb4e0a692c899'] = 'Captcha sull’iscrizione alla newsletter';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_15081defa91f0b11f79204fce75b09d5'] = 'Mostra il captcha come conferma solo dopo che un visitatore tenta di iscriversi.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_06f5c14684e2369adcd2cd8a45150215'] = 'Validazione email sull’iscrizione alla newsletter';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_871e9776844cf02229c830a127cc54d3'] = 'Conferma iscrizione alla newsletter';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_4e999fff7b7bd682a6e5815b766ca375'] = 'Completa la verifica antispam per iscriverti.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_25dc463700cfcc299d62dd4eea7afe38'] = 'Conferma iscrizione';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_ea4788705e6873b424c65e91c2846b19'] = 'Annulla';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_0b53ebb5457f3e83b8ee4d4515944e3c'] = 'Completa la verifica antispam.';

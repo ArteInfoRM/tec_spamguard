@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.2.0] - 2026-09-02
+### Added
+- Added optional B2B Request account-form protection with server-side enforcement and dedicated validation log locations.
+- Added a public form-integration API and `actionTecSpamGuardRegisterFormIntegrations` hook so third-party modules can register protected form adapters without changing Tec Spam Guard.
+- Added independent captcha and email-validation switches for newsletter subscriptions, disabled by default.
+- Added newsletter protection for native `ps_emailsubscription` forms and Warehouse forms submitted through `iqitemailsubscriptionconf`, including AJAX responses expected by the native module.
+
+### Changed
+- B2B Request registration and login inherit their respective global captcha and email validation settings behind one integration switch.
+- Issued captchas are logged only after the front-office widget has been inserted into a visible form.
+- Newsletter captcha is loaded and displayed in a confirmation dialog only after the first subscription attempt, avoiding permanent footer layout changes.
+- Newsletter validation attempts use the dedicated `newsletter` log location; third-party adapter attempts use contextual `ext_<integration_id>_<form_type>` locations.
+
+### Security
+- Enforced newsletter captcha and email validation server-side so direct requests cannot bypass the browser confirmation flow.
+- Restricted rejected newsletter redirects to same-shop referrers and returned structured errors for AJAX submissions.
+
+---
 ## [1.1.1] - 2026-08-20
 ### Security
 - Removed unescaped Smarty variables from the back-office configuration tabs and restricted tab content rendering to trusted module callbacks.

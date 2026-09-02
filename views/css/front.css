@@ -77,6 +77,54 @@ body.tec-spamguard-recaptcha-v3 .grecaptcha-badge {
     visibility: hidden;
 }
 
+.tec-spamguard-newsletter-overlay {
+    align-items: center;
+    background: rgba(0, 0, 0, 0.58);
+    display: none;
+    inset: 0;
+    justify-content: center;
+    padding: 20px;
+    position: fixed;
+    z-index: 100000;
+}
+
+.tec-spamguard-newsletter-overlay-open {
+    display: flex;
+}
+
+.tec-spamguard-newsletter-panel {
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+    color: #232323;
+    max-width: 480px;
+    padding: 24px;
+    text-align: center;
+    width: 100%;
+}
+
+.tec-spamguard-newsletter-title {
+    font-size: 20px;
+    margin: 0 0 8px;
+}
+
+.tec-spamguard-newsletter-message,
+.tec-spamguard-newsletter-feedback {
+    margin: 0 0 12px;
+}
+
+.tec-spamguard-newsletter-feedback {
+    color: #d9534f;
+    min-height: 20px;
+}
+
+.tec-spamguard-newsletter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
 @media (max-width: 420px) {
     .tec-spamguard-altcha-frame {
         gap: 8px;

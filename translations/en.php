@@ -3,6 +3,7 @@
 global $_MODULE;
 $_MODULE = [];
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_63ef1011260730b1e4d525a369498069'] = 'Tec Spam Guard';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_e749c5691dae5eaee39f3fee34bfc45b'] = 'Protect contact, account, password reset, and newsletter forms from spam with captcha, email, and message validation.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_13e65a90581f7c4848e6d1a0affc2a3e'] = 'Protect contact, registration, login, and password reset forms from spam with captcha, email, and message validation.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_77a840577c6f587edb28ad8200998180'] = 'Spam Protection';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_6ba29216f217613f40982398b527568e'] = 'Configure module';
@@ -77,6 +78,8 @@ $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_c8422cf9e4051930e46eba6dc25f2
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_84d2706cbfe33405fa8032e4cce9f857'] = 'Captcha on login form';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_dd32b40dadb7a420eef2c03187f44ae9'] = 'Captcha during checkout';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_173eaccc9acedc60d3211831264f6df4'] = 'When enabled, checkout registration and login forms follow their captcha settings.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b3b170914365d10c1cc5bebd2095b5ef'] = 'Enable for B2B Request';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3047246c6cbb3e81dbff274d1ae65870'] = 'When enabled, B2B Request registration and login inherit their respective captcha and email validation settings.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b0ab0ed9a5d0743e114339c9fd817216'] = 'Skip captcha for logged-in customers';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_1da28ae572a970d5600d3420c5c39fe3'] = 'When enabled, logged-in customers are not asked to solve captcha challenges.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_cf1fb11f13b6a6c57b4ef86331650ae8'] = 'Captcha on password reset form';
@@ -186,3 +189,11 @@ $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_44749712dbe
 $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_6ba29216f217613f40982398b527568e'] = 'Configure module';
 $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_d3b206d196cd6be3a2764c1fb90b200f'] = 'Delete selected';
 $_MODULE['<{tec_spamguard}prestashop>admintecspamguardvalidationlogs_e25f0ecd41211b01c83e5fec41df4fe7'] = 'Delete selected items?';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_001bf5c7a1fa79f155cbb4e0a692c899'] = 'Captcha on newsletter subscription';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_15081defa91f0b11f79204fce75b09d5'] = 'Show the captcha as a confirmation only after a visitor attempts to subscribe.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_06f5c14684e2369adcd2cd8a45150215'] = 'Email validation on newsletter subscription';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_871e9776844cf02229c830a127cc54d3'] = 'Confirm newsletter subscription';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_4e999fff7b7bd682a6e5815b766ca375'] = 'Complete the antispam verification to subscribe.';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_25dc463700cfcc299d62dd4eea7afe38'] = 'Confirm subscription';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_ea4788705e6873b424c65e91c2846b19'] = 'Cancel';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_0b53ebb5457f3e83b8ee4d4515944e3c'] = 'Please complete the antispam verification.';

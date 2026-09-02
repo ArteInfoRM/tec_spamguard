@@ -44,8 +44,10 @@ The module focuses on native PrestaShop front-office forms:
 - Checkout guest/customer creation
 - Checkout login
 - Forgot password
+- B2B Request account creation and login, when the optional integration is enabled
+- Native PrestaShop and Warehouse newsletter subscription forms, when their protections are enabled
 
-Additional forms such as newsletter, product reviews, quick order, and stock notifications can be added later with the same form descriptor pattern.
+Additional forms such as product reviews, quick order, and stock notifications can be added later with the same form descriptor pattern.
 
 ## Captcha Activation
 
@@ -56,9 +58,14 @@ The checkout rule is:
 - `Captcha on registration form` controls registration captcha globally.
 - `Captcha on login form` controls login captcha globally.
 - `Captcha during checkout` decides whether those Register and Login captcha settings also apply inside the checkout.
+- `Enable for B2B Request` enables the integration. B2B account creation then follows the Registration settings, while B2B login follows the Login settings.
 - `Captcha on back-office login` adds the configured captcha provider to the PrestaShop employee login page. Legacy PrestaShop admin login flows are validated server-side before authentication; PrestaShop 9 renders the captcha on the Symfony login page and relies on the browser-side gate because the core authenticator handles the POST before legacy module hooks.
 
 If `Captcha during checkout` is disabled, the checkout does not ask for captcha on registration or login, even if the normal Register or Login captcha settings are enabled. This affects only captcha. Email validation remains independent and still runs when the related Register or Login email validation switch is enabled.
+
+The B2B Request integration is disabled by default. When enabled, registration and login independently inherit their corresponding global captcha and email validation settings. Validation is performed server-side before the B2B Request controller can create or authenticate a customer.
+
+Newsletter captcha and newsletter email validation have separate switches and are disabled by default. They support the native `ps_emailsubscription` form and Warehouse forms submitted through `iqitemailsubscriptionconf`. The captcha is loaded in a confirmation dialog only after the visitor first attempts to submit an email, so it does not occupy permanent space in the footer. Server-side validation remains mandatory even when JavaScript is bypassed.
 
 The `Skip captcha for logged-in customers` option can be enabled to avoid asking authenticated customers to solve captcha challenges. This is useful on account, checkout, and contact flows where a logged-in customer has already passed the shop authentication step. This option only skips captcha; email validation and message validation continue to run when enabled.
 
@@ -75,7 +82,7 @@ The same Email validation tab also includes `Discouraged email domains`. This li
 
 Contact message validation is also independent from captcha. It can block configured words or phrases and reject contact messages with too many links.
 
-The Validation logs tab can store failed captcha, email, and message validation attempts. Issued captcha challenges and successful validations can also be logged with separate opt-in switches. Logged entries include the IP address, optional location when the PrestaShop GeoLite2-City database is available, the validation result, the form where a captcha was issued or where validation failed or passed, the attempted email for email validation attempts, the user agent, and the date. The message text itself is not stored.
+The Validation logs tab can store failed captcha, email, and message validation attempts. Captcha displays and successful validations can also be logged with separate opt-in switches. A captcha is recorded as issued only after the front-office script has inserted its widget into a visible form. Logged entries include the IP address, optional location when the PrestaShop GeoLite2-City database is available, the validation result, the form where a captcha was displayed or where validation failed or passed, the attempted email for email validation attempts, the user agent, and the date. The message text itself is not stored.
 
 The bundled disposable email domain file is stored as an internal module data file and is blocked from direct browser access. The Information tab includes a manual update button that downloads the maintained `domains_mx.txt` list from `disposable.github.io`, validates the downloaded domains, creates a timestamped backup of the current local file, and then replaces `data/disposable_domains.txt`. The module keeps the 5 most recent disposable-domain backups and removes older backup files automatically after a successful update.
 
@@ -214,8 +221,81 @@ The module is implemented through standard PrestaShop extension points:
 - `displayHeader` loads the front-office JavaScript and captcha provider script only on pages that may contain protected forms.
 - `displayAdminLogin` injects the configured captcha provider into the PrestaShop employee login page when back-office login captcha is enabled.
 - `actionDispatcher` detects submitted native forms before the target front controller processes the request and validates back-office login captcha submissions on legacy admin login flows.
+- The optional B2B Request integration detects its account creation and login submissions in `actionDispatcher`, adds the configured widgets to its account page, and records dedicated `b2brequest_register` and `b2brequest_login` log locations.
 - `actionContactFormSubmitBefore` and `actionSubmitAccountBefore` are used as native hook fallbacks where PrestaShop exposes them.
 - A dedicated `altchachallenge` module front controller generates local ALTCHA challenges.
 - Small form descriptor classes identify supported forms and read submitted values without coupling the validators to a specific controller implementation.
 
 The front-office script injects captcha widgets into visible supported forms and listens to checkout refresh events so the widget is reattached when PrestaShop updates checkout steps through AJAX. When a theme places submit buttons inside flex or action containers, the widget is inserted before that action row so the captcha keeps its own full-width line. Server-side validation remains the source of truth: a form submission is rejected when the configured captcha, email, or message rule fails, regardless of client-side behavior.
+
+## Third-Party Form Integration API
+
+Third-party modules can register form adapters through the public `actionTecSpamGuardRegisterFormIntegrations` hook. Built-in integrations remain limited to native PrestaShop forms and modules maintained by Tecnoacquisti.com®. Other modules can implement the API directly or use a separate bridge module, without modifying Tec Spam Guard.
+
+The provider module must register the hook during installation or upgrade:
+
+```php
+$this->registerHook('actionTecSpamGuardRegisterFormIntegrations');
+```
+
+Its hook method returns one adapter or an array of adapters:
+
+```php
+use Vendor\Module\SpamGuard\ExampleRegistrationIntegration;
+
+public function hookActionTecSpamGuardRegisterFormIntegrations()
+{
+    return [new ExampleRegistrationIntegration()];
+}
+```
+
+Each adapter implements `TecSpamGuard\Integration\FormIntegrationInterface`:
+
+```php
+namespace Vendor\Module\SpamGuard;
+
+use TecSpamGuard\Form\FormInterface;
+use TecSpamGuard\Integration\FormIntegrationInterface;
+
+final class ExampleRegistrationIntegration implements FormIntegrationInterface
+{
+    public function getId(): string
+    {
+        return 'example_registration';
+    }
+
+    public function supportsCurrentPage(\Context $context): bool
+    {
+        return isset($context->controller->module)
+            && $context->controller->module->name === 'examplemodule';
+    }
+
+    public function getFormTypes(\Context $context): array
+    {
+        return ['register'];
+    }
+
+    public function getSubmittedForm(\Context $context): ?FormInterface
+    {
+        if (!\Tools::isSubmit('submitExampleRegistration')) {
+            return null;
+        }
+
+        return new ExampleRegistrationForm($context);
+    }
+
+    public function getFormSelectors(): array
+    {
+        return ['register' => ['form.example-registration']];
+    }
+
+    public function getReturnUrl(\Context $context, string $formType): string
+    {
+        return $context->link->getModuleLink('examplemodule', 'registration');
+    }
+}
+```
+
+The returned form descriptor must implement `TecSpamGuard\Form\FormInterface` and provide the standard type (`contact`, `register`, `login`, or `password`), submission detection, and the submitted email or message when applicable. Tec Spam Guard applies its existing per-type captcha and validation settings, performs server-side validation in `actionDispatcher`, injects widgets using the declared selectors, redirects failures to the adapter URL, and records log locations as `ext_<integration_id>_<form_type>`.
+
+Integration IDs must contain only lowercase ASCII letters, numbers, and underscores, with a maximum length of 32 characters. Selectors are limited to 255 characters. Only one adapter should claim a page; duplicate IDs are ignored. Page and submission recognition must rely on server-side controller, module, route, and submit-action checks. Hidden inputs and JavaScript selectors alone must never be treated as proof that a request belongs to an integration.

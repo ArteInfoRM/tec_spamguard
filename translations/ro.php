@@ -2,6 +2,8 @@
 
 global $_MODULE;
 $_MODULE = [];
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_b3b170914365d10c1cc5bebd2095b5ef'] = 'Activează pentru B2B Request';
+$_MODULE['<{tec_spamguard}prestashop>tec_spamguard_3047246c6cbb3e81dbff274d1ae65870'] = 'Când este activată, înregistrarea și autentificarea B2B Request moștenesc setările corespunzătoare pentru captcha și validarea e-mailului.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_63ef1011260730b1e4d525a369498069'] = 'Tec Spam Guard';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_13e65a90581f7c4848e6d1a0affc2a3e'] = 'Protejează formularele de contact, înregistrare, autentificare și resetare a parolei împotriva spamului cu captcha, validare e-mail și validare mesaje.';
 $_MODULE['<{tec_spamguard}prestashop>tec_spamguard_77a840577c6f587edb28ad8200998180'] = 'Protecție spam';

@@ -118,6 +118,27 @@
 <hr>
 <h2>[Unreleased]</h2>
 <hr>
+<h2>[1.2.0] - 2026-09-02</h2>
+<h3>Added</h3>
+<ul>
+<li>Added optional B2B Request account-form protection with server-side enforcement and dedicated validation log locations.</li>
+<li>Added a public form-integration API and <code>actionTecSpamGuardRegisterFormIntegrations</code> hook so third-party modules can register protected form adapters without changing Tec Spam Guard.</li>
+<li>Added independent captcha and email-validation switches for newsletter subscriptions, disabled by default.</li>
+<li>Added newsletter protection for native <code>ps_emailsubscription</code> forms and Warehouse forms submitted through <code>iqitemailsubscriptionconf</code>, including AJAX responses expected by the native module.</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>B2B Request registration and login inherit their respective global captcha and email validation settings behind one integration switch.</li>
+<li>Issued captchas are logged only after the front-office widget has been inserted into a visible form.</li>
+<li>Newsletter captcha is loaded and displayed in a confirmation dialog only after the first subscription attempt, avoiding permanent footer layout changes.</li>
+<li>Newsletter validation attempts use the dedicated <code>newsletter</code> log location; third-party adapter attempts use contextual <code>ext_&lt;integration_id&gt;_&lt;form_type&gt;</code> locations.</li>
+</ul>
+<h3>Security</h3>
+<ul>
+<li>Enforced newsletter captcha and email validation server-side so direct requests cannot bypass the browser confirmation flow.</li>
+<li>Restricted rejected newsletter redirects to same-shop referrers and returned structured errors for AJAX submissions.</li>
+</ul>
+<hr>
 <h2>[1.1.1] - 2026-08-20</h2>
 <h3>Security</h3>
 <ul>

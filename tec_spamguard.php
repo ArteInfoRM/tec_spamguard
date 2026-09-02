@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.1.1
+ * @version   1.2.0
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -18,11 +18,15 @@ use TecSpamGuard\Captcha\CaptchaProviderInterface;
 use TecSpamGuard\Captcha\RecaptchaV2Provider;
 use TecSpamGuard\Captcha\RecaptchaV3Provider;
 use TecSpamGuard\Captcha\TurnstileProvider;
+use TecSpamGuard\Form\B2bRequestLoginForm;
+use TecSpamGuard\Form\B2bRequestRegisterForm;
 use TecSpamGuard\Form\ContactForm;
 use TecSpamGuard\Form\FormInterface;
 use TecSpamGuard\Form\LoginForm;
+use TecSpamGuard\Form\NewsletterForm;
 use TecSpamGuard\Form\PasswordForm;
 use TecSpamGuard\Form\RegisterForm;
+use TecSpamGuard\Integration\FormIntegrationInterface;
 use TecSpamGuard\Validation\EmailValidator;
 use TecSpamGuard\Validation\MessageValidator;
 
@@ -38,6 +42,7 @@ class Tec_spamguard extends Module
     public const VALIDATION_LOG_TABLE = 'tec_spamguard_validation_log';
     public const ALTCHA_REPLAY_TABLE = 'tec_spamguard_altcha_replay';
     public const VALIDATION_LOG_RETENTION_DEFAULT_DAYS = 30;
+    public const FORM_INTEGRATION_HOOK = 'actionTecSpamGuardRegisterFormIntegrations';
     public const DEFAULT_DISCOURAGED_EMAIL_DOMAINS = "libero.it\nvirgilio.it\ntiscali.it\ntin.it\nt-online.de\naol.com\ntim.it\naruba.it\noutlook.it\noutlook.com\nhotmail.com\nlive.it\nlive.com";
 
     /**
@@ -55,13 +60,27 @@ class Tec_spamguard extends Module
     private $altchaReplaySchemaReady;
 
     /**
+     * External form integrations registered for the current request.
+     *
+     * @var FormIntegrationInterface[]|null
+     */
+    private $formIntegrations;
+
+    /**
+     * External form integration matching the current page.
+     *
+     * @var FormIntegrationInterface|false|null
+     */
+    private $currentFormIntegration;
+
+    /**
      * Module constructor.
      */
     public function __construct()
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.1';
+        $this->version = '1.2.0';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -69,7 +88,7 @@ class Tec_spamguard extends Module
         parent::__construct();
 
         $this->displayName = $this->l('Tec Spam Guard');
-        $this->description = $this->l('Protect contact, registration, login, and password reset forms from spam with captcha, email, and message validation.');
+        $this->description = $this->l('Protect contact, account, password reset, and newsletter forms from spam with captcha, email, and message validation.');
         $this->ps_versions_compliancy = ['min' => '1.7', 'max' => _PS_VERSION_];
 
         $this->registerAutoload();
@@ -136,7 +155,7 @@ class Tec_spamguard extends Module
         }
         if (Tools::isSubmit('submitTecSpamGuardCaptchaForms')) {
             $output .= $this->postProcessSwitchConfiguration([
-                'CONTACT_CAPTCHA', 'REGISTER_CAPTCHA', 'LOGIN_CAPTCHA', 'CHECKOUT_CAPTCHA', 'SKIP_LOGGED_CUSTOMER_CAPTCHA', 'PASSWORD_CAPTCHA', 'ADMIN_LOGIN_CAPTCHA',
+                'CONTACT_CAPTCHA', 'REGISTER_CAPTCHA', 'LOGIN_CAPTCHA', 'CHECKOUT_CAPTCHA', 'B2BREQUEST_PROTECTION', 'NEWSLETTER_CAPTCHA', 'SKIP_LOGGED_CUSTOMER_CAPTCHA', 'PASSWORD_CAPTCHA', 'ADMIN_LOGIN_CAPTCHA',
             ]);
             $this->ensureAdminLoginHooks();
         }
@@ -207,10 +226,6 @@ class Tec_spamguard extends Module
             return '';
         }
 
-        if ($provider instanceof CaptchaProviderInterface && !empty($forms)) {
-            $this->logIssuedCaptchas($this->getIssuedCaptchaLogLocations($forms));
-        }
-
         $this->context->controller->registerJavascript(
             'module-tec-spamguard-front',
             'modules/' . $this->name . '/views/js/front.js',
@@ -231,7 +246,16 @@ class Tec_spamguard extends Module
                 'widgetAttributes' => $provider instanceof CaptchaProviderInterface && method_exists($provider, 'getWidgetAttributes') ? $provider->getWidgetAttributes() : [],
                 'recaptchaAction' => (string) Configuration::get(self::CONFIG_PREFIX . 'RECAPTCHA_V3_ACTION'),
                 'recaptchaNotice' => $this->l('This site is protected by reCAPTCHA.'),
+                'newsletterChallengeTitle' => $this->l('Confirm newsletter subscription'),
+                'newsletterChallengeMessage' => $this->l('Complete the antispam verification to subscribe.'),
+                'newsletterChallengeContinue' => $this->l('Confirm subscription'),
+                'newsletterChallengeClose' => $this->l('Cancel'),
+                'newsletterChallengeIncomplete' => $this->l('Please complete the antispam verification.'),
                 'recaptchaPrecheckUrl' => $this->context->link->getModuleLink($this->name, 'recaptchaprecheck'),
+                'captchaDisplayUrl' => $this->context->link->getModuleLink($this->name, 'captchadisplay'),
+                'captchaDisplayToken' => Tools::getToken(false),
+                'captchaLogLocations' => $this->getCaptchaLogLocations($forms),
+                'formSelectors' => $this->getCurrentIntegrationFormSelectors(),
                 'moduleLogoUrl' => __PS_BASE_URI__ . 'modules/' . $this->name . '/logo.png',
                 'moduleLogoAlt' => $this->l('Protected by Tec Spam Guard'),
                 'altchaI18n' => $altchaI18n,
@@ -1046,6 +1070,8 @@ class Tec_spamguard extends Module
             self::CONFIG_PREFIX . 'REGISTER_CAPTCHA' => 1,
             self::CONFIG_PREFIX . 'LOGIN_CAPTCHA' => 0,
             self::CONFIG_PREFIX . 'CHECKOUT_CAPTCHA' => 1,
+            self::CONFIG_PREFIX . 'B2BREQUEST_PROTECTION' => 0,
+            self::CONFIG_PREFIX . 'NEWSLETTER_CAPTCHA' => 0,
             self::CONFIG_PREFIX . 'SKIP_LOGGED_CUSTOMER_CAPTCHA' => 0,
             self::CONFIG_PREFIX . 'PASSWORD_CAPTCHA' => 1,
             self::CONFIG_PREFIX . 'ADMIN_LOGIN_CAPTCHA' => 0,
@@ -1053,6 +1079,7 @@ class Tec_spamguard extends Module
             self::CONFIG_PREFIX . 'REGISTER_EMAIL' => 1,
             self::CONFIG_PREFIX . 'LOGIN_EMAIL' => 0,
             self::CONFIG_PREFIX . 'PASSWORD_EMAIL' => 0,
+            self::CONFIG_PREFIX . 'NEWSLETTER_EMAIL' => 0,
             self::CONFIG_PREFIX . 'CONTACT_MESSAGE' => 1,
             self::CONFIG_PREFIX . 'BLOCK_DISPOSABLE' => 1,
             self::CONFIG_PREFIX . 'BLOCKED_EMAILS' => '',
@@ -1266,7 +1293,7 @@ class Tec_spamguard extends Module
     private function postProcessEmailValidationConfiguration()
     {
         $result = $this->postProcessSwitchConfiguration([
-            'CONTACT_EMAIL', 'REGISTER_EMAIL', 'LOGIN_EMAIL', 'PASSWORD_EMAIL', 'BLOCK_DISPOSABLE', 'DISCOURAGED_EMAIL_WARNING',
+            'CONTACT_EMAIL', 'REGISTER_EMAIL', 'LOGIN_EMAIL', 'PASSWORD_EMAIL', 'NEWSLETTER_EMAIL', 'BLOCK_DISPOSABLE', 'DISCOURAGED_EMAIL_WARNING',
         ]);
         if (strpos($result, 'alert-danger') !== false) {
             return $result;
@@ -1951,6 +1978,22 @@ class Tec_spamguard extends Module
                     ],
                     [
                         'type' => 'switch',
+                        'label' => $this->l('Enable for B2B Request'),
+                        'name' => self::CONFIG_PREFIX . 'B2BREQUEST_PROTECTION',
+                        'is_bool' => true,
+                        'desc' => $this->l('When enabled, B2B Request registration and login inherit their respective captcha and email validation settings.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Captcha on newsletter subscription'),
+                        'name' => self::CONFIG_PREFIX . 'NEWSLETTER_CAPTCHA',
+                        'is_bool' => true,
+                        'desc' => $this->l('Show the captcha as a confirmation only after a visitor attempts to subscribe.'),
+                        'values' => $this->getSwitchValues(),
+                    ],
+                    [
+                        'type' => 'switch',
                         'label' => $this->l('Skip captcha for logged-in customers'),
                         'name' => self::CONFIG_PREFIX . 'SKIP_LOGGED_CUSTOMER_CAPTCHA',
                         'is_bool' => true,
@@ -1987,6 +2030,7 @@ class Tec_spamguard extends Module
                     ['type' => 'switch', 'label' => $this->l('Email validation on registration form'), 'name' => self::CONFIG_PREFIX . 'REGISTER_EMAIL', 'is_bool' => true, 'values' => $this->getSwitchValues()],
                     ['type' => 'switch', 'label' => $this->l('Email validation on login form'), 'name' => self::CONFIG_PREFIX . 'LOGIN_EMAIL', 'is_bool' => true, 'values' => $this->getSwitchValues()],
                     ['type' => 'switch', 'label' => $this->l('Email validation on password reset form'), 'name' => self::CONFIG_PREFIX . 'PASSWORD_EMAIL', 'is_bool' => true, 'values' => $this->getSwitchValues()],
+                    ['type' => 'switch', 'label' => $this->l('Email validation on newsletter subscription'), 'name' => self::CONFIG_PREFIX . 'NEWSLETTER_EMAIL', 'is_bool' => true, 'values' => $this->getSwitchValues()],
                     ['type' => 'switch', 'label' => $this->l('Block disposable email domains'), 'name' => self::CONFIG_PREFIX . 'BLOCK_DISPOSABLE', 'is_bool' => true, 'values' => $this->getSwitchValues()],
                     ['type' => 'textarea', 'label' => $this->l('Blocked email addresses'), 'name' => self::CONFIG_PREFIX . 'BLOCKED_EMAILS', 'desc' => $this->l('One email address per line.')],
                     ['type' => 'textarea', 'label' => $this->l('Blocked email domains'), 'name' => self::CONFIG_PREFIX . 'BLOCKED_DOMAINS', 'desc' => $this->l('One domain per line, without @.')],
@@ -2115,6 +2159,32 @@ class Tec_spamguard extends Module
      */
     private function getSubmittedForm()
     {
+        if ($this->isCurrentB2bRequestController()) {
+            $action = (string) Tools::getValue('submit_b2brequest_step');
+            if ($action === 'account' && $this->isB2bRequestProtectionEnabled()) {
+                return new B2bRequestRegisterForm($this->context);
+            }
+            if ($action === 'login' && $this->isB2bRequestProtectionEnabled()) {
+                return new B2bRequestLoginForm($this->context);
+            }
+        }
+
+        if (Tools::isSubmit('submitNewsletter')) {
+            return new NewsletterForm($this->context);
+        }
+
+        $integration = $this->getCurrentFormIntegration();
+        if ($integration instanceof FormIntegrationInterface) {
+            try {
+                $form = $integration->getSubmittedForm($this->context);
+                if ($form instanceof FormInterface && in_array($form->getType(), $this->getIntegrationFormTypes($integration), true)) {
+                    return $form;
+                }
+            } catch (Throwable $throwable) {
+                unset($throwable);
+            }
+        }
+
         foreach (['contact', 'register', 'login', 'password'] as $type) {
             $form = $this->buildForm($type);
             if ($form->isSubmitted()) {
@@ -2155,14 +2225,15 @@ class Tec_spamguard extends Module
      */
     private function validateSubmittedForm(FormInterface $form)
     {
+        $logLocation = $this->getContextualValidationLocation($form->getType());
         if ($this->isFormCaptchaEnabled($form->getType()) && $this->shouldProtectFormInCurrentContext($form->getType())) {
             $error = $this->validateCaptcha($form->getType());
             if ($error !== '') {
-                $this->logFailedValidation($form->getType(), 'captcha');
+                $this->logFailedValidation($logLocation, 'captcha');
 
                 return $error;
             }
-            $this->logPassedValidation($form->getType(), 'captcha');
+            $this->logPassedValidation($logLocation, 'captcha');
         }
 
         if ($this->isFormEmailValidationEnabled($form->getType()) && $form->getEmail() !== '') {
@@ -2174,11 +2245,11 @@ class Tec_spamguard extends Module
                 dirname(__FILE__) . '/data/disposable_domains.txt'
             );
             if (!$validator->isAllowed($form->getEmail())) {
-                $this->logFailedValidation($form->getType(), 'email', $form->getEmail());
+                $this->logFailedValidation($logLocation, 'email', $form->getEmail());
 
                 return $this->getEmailValidationErrorMessage($form->getType());
             }
-            $this->logPassedValidation($form->getType(), 'email', $form->getEmail());
+            $this->logPassedValidation($logLocation, 'email', $form->getEmail());
         }
 
         if ($this->isFormMessageValidationEnabled($form->getType()) && $form->getMessage() !== '') {
@@ -2187,11 +2258,11 @@ class Tec_spamguard extends Module
                 (int) $this->getConfigurationValue('MAX_MESSAGE_LINKS')
             );
             if (!$validator->isAllowed($form->getMessage())) {
-                $this->logFailedValidation($form->getType(), 'message');
+                $this->logFailedValidation($logLocation, 'message');
 
                 return $this->l('Please use another message.');
             }
-            $this->logPassedValidation($form->getType(), 'message');
+            $this->logPassedValidation($logLocation, 'message');
         }
 
         return '';
@@ -2241,6 +2312,30 @@ class Tec_spamguard extends Module
         foreach (array_unique($formTypes) as $formType) {
             $this->logValidationAttempt($formType, 'captcha', null);
         }
+    }
+
+    /**
+     * Log a captcha after its widget has been inserted into a visible form.
+     *
+     * @param string $location Protected form location
+     * @param string $token Front-office request token
+     *
+     * @return bool
+     */
+    public function logDisplayedCaptcha($location, $token)
+    {
+        if (!hash_equals((string) Tools::getToken(false), (string) $token)) {
+            return false;
+        }
+
+        $location = $this->normalizeValidationLogLocation($location);
+        if ($location === 'unknown') {
+            return false;
+        }
+
+        $this->logIssuedCaptchas([$location]);
+
+        return true;
     }
 
     /**
@@ -2324,7 +2419,22 @@ class Tec_spamguard extends Module
     private function normalizeValidationLogLocation($location)
     {
         $location = (string) $location;
-        if (in_array($location, ['contact', 'register', 'checkout_register', 'checkout_login', 'login', 'password', 'admin_login'], true)) {
+        $allowedLocations = [
+            'contact',
+            'register',
+            'checkout_register',
+            'checkout_login',
+            'b2brequest_register',
+            'b2brequest_login',
+            'login',
+            'password',
+            'admin_login',
+            'newsletter',
+        ];
+        if (in_array($location, $allowedLocations, true)) {
+            return $location;
+        }
+        if (preg_match('/^ext_[a-z0-9_]{1,32}_(contact|register|login|password)$/', $location)) {
             return $location;
         }
 
@@ -2358,14 +2468,13 @@ class Tec_spamguard extends Module
      *
      * @return array
      */
-    private function getIssuedCaptchaLogLocations(array $forms)
+    private function getCaptchaLogLocations(array $forms)
     {
         $locations = [];
-        if (!empty($forms['register'])) {
-            $locations[] = $this->isCurrentControllerOrder() ? 'checkout_register' : 'register';
-        }
-        if (!empty($forms['login']) && $this->isCurrentControllerOrder()) {
-            $locations[] = 'checkout_login';
+        foreach (['contact', 'register', 'login', 'password', 'newsletter'] as $formType) {
+            if (!empty($forms[$formType])) {
+                $locations[$formType] = $this->getContextualValidationLocation($formType);
+            }
         }
 
         return $locations;
@@ -2624,11 +2733,38 @@ class Tec_spamguard extends Module
     private function rejectRequest($error, $formType = '')
     {
         $this->context->controller->errors[] = $error;
+
+        if ($formType === 'newsletter' && $this->isAjaxRequest()) {
+            if (!headers_sent()) {
+                header('Content-Type: application/json; charset=utf-8');
+            }
+            exit(json_encode([
+                'value' => (string) Tools::getValue('email'),
+                'msg' => (string) $error,
+                'nw_error' => true,
+            ]));
+        }
+
         $this->persistFrontOfficeErrorNotification($error);
 
         $returnUrl = $this->getFormReturnUrl($formType);
 
         Tools::redirect($returnUrl);
+    }
+
+    /**
+     * Check whether the current request expects an AJAX response.
+     *
+     * @return bool
+     */
+    private function isAjaxRequest()
+    {
+        if ((bool) Tools::getValue('ajax')) {
+            return true;
+        }
+
+        return isset($_SERVER['HTTP_X_REQUESTED_WITH'])
+            && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     }
 
     /**
@@ -2704,6 +2840,21 @@ class Tec_spamguard extends Module
         if (($formType === 'register' || $formType === 'login') && $this->isCurrentControllerOrder()) {
             return $this->context->link->getPageLink('order', $ssl);
         }
+        if (($formType === 'register' || $formType === 'login') && $this->isCurrentB2bRequestController()) {
+            return $this->context->link->getModuleLink('b2brequest', 'register', [], $ssl);
+        }
+
+        $integration = $this->getCurrentFormIntegration();
+        if ($integration instanceof FormIntegrationInterface) {
+            try {
+                $returnUrl = trim((string) $integration->getReturnUrl($this->context, (string) $formType));
+                if ($returnUrl !== '') {
+                    return $returnUrl;
+                }
+            } catch (Throwable $throwable) {
+                unset($throwable);
+            }
+        }
 
         switch ((string) $formType) {
             case 'contact':
@@ -2714,9 +2865,36 @@ class Tec_spamguard extends Module
                 return $this->context->link->getPageLink('authentication', $ssl);
             case 'password':
                 return $this->context->link->getPageLink('password', $ssl);
+            case 'newsletter':
+                return $this->getNewsletterReturnUrl($ssl);
         }
 
         return $this->context->link->getPageLink('index', $ssl);
+    }
+
+    /**
+     * Return a same-shop URL after a rejected newsletter request.
+     *
+     * @param bool $ssl Whether SSL is enabled
+     *
+     * @return string
+     */
+    private function getNewsletterReturnUrl($ssl)
+    {
+        $fallback = $this->context->link->getPageLink('index', $ssl);
+        $referer = isset($_SERVER['HTTP_REFERER']) ? trim((string) $_SERVER['HTTP_REFERER']) : '';
+        if ($referer === '' || !Validate::isUrl($referer)) {
+            return $fallback;
+        }
+
+        $refererHost = parse_url($referer, PHP_URL_HOST);
+        $shopHost = parse_url($fallback, PHP_URL_HOST);
+        if (!is_string($refererHost) || !is_string($shopHost)
+            || strtolower($refererHost) !== strtolower($shopHost)) {
+            return $fallback;
+        }
+
+        return $referer;
     }
 
     /**
@@ -2732,6 +2910,9 @@ class Tec_spamguard extends Module
             || $controller instanceof AuthController
             || $controller instanceof PasswordController
             || $this->isCurrentControllerOrder()
+            || ($this->isB2bRequestProtectionEnabled() && $this->isCurrentB2bRequestController())
+            || $this->isNewsletterProtectionEnabled()
+            || $this->getCurrentFormIntegration() instanceof FormIntegrationInterface
             || (class_exists('RegistrationController') && $controller instanceof RegistrationController);
     }
 
@@ -2743,6 +2924,227 @@ class Tec_spamguard extends Module
     private function isCurrentControllerOrder()
     {
         return $this->context->controller instanceof OrderController;
+    }
+
+    /**
+     * Check whether the optional B2B Request integration is enabled.
+     *
+     * @return bool
+     */
+    private function isB2bRequestProtectionEnabled()
+    {
+        return (int) $this->getConfigurationValue('B2BREQUEST_PROTECTION') === 1;
+    }
+
+    /**
+     * Check whether at least one newsletter protection is enabled.
+     *
+     * @return bool
+     */
+    private function isNewsletterProtectionEnabled()
+    {
+        return $this->isFormCaptchaEnabled('newsletter')
+            || $this->isFormEmailValidationEnabled('newsletter');
+    }
+
+    /**
+     * Check whether the current request uses the B2B Request registration controller.
+     *
+     * @return bool
+     */
+    private function isCurrentB2bRequestController()
+    {
+        if (!isset($this->context->controller) || !$this->context->controller instanceof ModuleFrontController) {
+            return false;
+        }
+
+        $controller = $this->context->controller;
+        if (isset($controller->module) && is_object($controller->module)
+            && (string) $controller->module->name === 'b2brequest'
+            && (string) Tools::getValue('controller') === 'register') {
+            return true;
+        }
+
+        return get_class($controller) === 'B2brequestRegisterModuleFrontController';
+    }
+
+    /**
+     * Return the validation log location for the current form context.
+     *
+     * @param string $formType Protected form type
+     *
+     * @return string
+     */
+    private function getContextualValidationLocation($formType)
+    {
+        if ($this->isCurrentControllerOrder()) {
+            return $formType === 'register' ? 'checkout_register' : ($formType === 'login' ? 'checkout_login' : $formType);
+        }
+        if ($this->isCurrentB2bRequestController()) {
+            return $formType === 'register' ? 'b2brequest_register' : ($formType === 'login' ? 'b2brequest_login' : $formType);
+        }
+
+        $integration = $this->getCurrentFormIntegration();
+        if ($integration instanceof FormIntegrationInterface) {
+            try {
+                return 'ext_' . $integration->getId() . '_' . (string) $formType;
+            } catch (Throwable $throwable) {
+                unset($throwable);
+            }
+        }
+
+        return (string) $formType;
+    }
+
+    /**
+     * Return external form integrations registered by installed modules.
+     *
+     * @return FormIntegrationInterface[]
+     */
+    private function getFormIntegrations()
+    {
+        if (is_array($this->formIntegrations)) {
+            return $this->formIntegrations;
+        }
+
+        $this->formIntegrations = [];
+        try {
+            $results = Hook::exec(self::FORM_INTEGRATION_HOOK, ['spam_guard' => $this], null, true);
+        } catch (Throwable $throwable) {
+            unset($throwable);
+
+            return $this->formIntegrations;
+        }
+        if (!is_array($results)) {
+            return $this->formIntegrations;
+        }
+
+        $integrationIds = [];
+        foreach ($results as $result) {
+            $candidates = is_array($result) ? $result : [$result];
+            foreach ($candidates as $candidate) {
+                if (!$candidate instanceof FormIntegrationInterface) {
+                    continue;
+                }
+
+                try {
+                    $rawIntegrationId = trim((string) $candidate->getId());
+                } catch (Throwable $throwable) {
+                    unset($throwable);
+
+                    continue;
+                }
+                $integrationId = strtolower($rawIntegrationId);
+                if ($rawIntegrationId !== $integrationId
+                    || !preg_match('/^[a-z0-9_]{1,32}$/', $integrationId)
+                    || isset($integrationIds[$integrationId])) {
+                    continue;
+                }
+
+                $integrationIds[$integrationId] = true;
+                $this->formIntegrations[] = $candidate;
+            }
+        }
+
+        return $this->formIntegrations;
+    }
+
+    /**
+     * Return the external integration matching the current page.
+     *
+     * @return FormIntegrationInterface|null
+     */
+    private function getCurrentFormIntegration()
+    {
+        if ($this->currentFormIntegration instanceof FormIntegrationInterface) {
+            return $this->currentFormIntegration;
+        }
+        if ($this->currentFormIntegration === false) {
+            return null;
+        }
+
+        foreach ($this->getFormIntegrations() as $integration) {
+            try {
+                if ($integration->supportsCurrentPage($this->context)) {
+                    $this->currentFormIntegration = $integration;
+
+                    return $integration;
+                }
+            } catch (Throwable $throwable) {
+                unset($throwable);
+            }
+        }
+
+        $this->currentFormIntegration = false;
+
+        return null;
+    }
+
+    /**
+     * Return validated standard form types exposed by an integration.
+     *
+     * @param FormIntegrationInterface $integration External form integration
+     *
+     * @return string[]
+     */
+    private function getIntegrationFormTypes(FormIntegrationInterface $integration)
+    {
+        try {
+            $formTypes = $integration->getFormTypes($this->context);
+        } catch (Throwable $throwable) {
+            unset($throwable);
+
+            return [];
+        }
+        if (!is_array($formTypes)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter($formTypes, function ($formType) {
+            return in_array($formType, ['contact', 'register', 'login', 'password'], true);
+        })));
+    }
+
+    /**
+     * Return validated frontend selectors from the current integration.
+     *
+     * @return array<string, string[]>
+     */
+    private function getCurrentIntegrationFormSelectors()
+    {
+        $integration = $this->getCurrentFormIntegration();
+        if (!$integration instanceof FormIntegrationInterface) {
+            return [];
+        }
+
+        try {
+            $selectors = $integration->getFormSelectors();
+        } catch (Throwable $throwable) {
+            unset($throwable);
+
+            return [];
+        }
+        if (!is_array($selectors)) {
+            return [];
+        }
+
+        $validatedSelectors = [];
+        foreach ($this->getIntegrationFormTypes($integration) as $formType) {
+            if (!isset($selectors[$formType]) || !is_array($selectors[$formType])) {
+                continue;
+            }
+            foreach ($selectors[$formType] as $selector) {
+                if (!is_string($selector)) {
+                    continue;
+                }
+                $selector = trim($selector);
+                if ($selector !== '' && Tools::strlen($selector) <= 255) {
+                    $validatedSelectors[$formType][] = $selector;
+                }
+            }
+        }
+
+        return $validatedSelectors;
     }
 
     /**
@@ -2941,6 +3343,26 @@ class Tec_spamguard extends Module
                 $forms['login'] = true;
             }
         }
+        if ($this->isCurrentB2bRequestController()) {
+            if ($this->isB2bRequestProtectionEnabled() && $this->isFormCaptchaEnabled('register') && $this->shouldProtectFormInCurrentContext('register')) {
+                $forms['register'] = true;
+            }
+            if ($this->isB2bRequestProtectionEnabled() && $this->isFormCaptchaEnabled('login') && $this->shouldProtectFormInCurrentContext('login')) {
+                $forms['login'] = true;
+            }
+        }
+        if ($this->isFormCaptchaEnabled('newsletter')) {
+            $forms['newsletter'] = true;
+        }
+
+        $integration = $this->getCurrentFormIntegration();
+        if ($integration instanceof FormIntegrationInterface) {
+            foreach ($this->getIntegrationFormTypes($integration) as $formType) {
+                if ($this->isFormCaptchaEnabled($formType) && $this->shouldProtectFormInCurrentContext($formType)) {
+                    $forms[$formType] = true;
+                }
+            }
+        }
 
         return $forms;
     }
@@ -2986,6 +3408,26 @@ class Tec_spamguard extends Module
             }
             if ($this->isFormEmailValidationEnabled('login')) {
                 $forms['login'] = true;
+            }
+        }
+        if ($this->isCurrentB2bRequestController()) {
+            if ($this->isB2bRequestProtectionEnabled() && $this->isFormEmailValidationEnabled('register')) {
+                $forms['register'] = true;
+            }
+            if ($this->isB2bRequestProtectionEnabled() && $this->isFormEmailValidationEnabled('login')) {
+                $forms['login'] = true;
+            }
+        }
+        if ($this->isFormEmailValidationEnabled('newsletter')) {
+            $forms['newsletter'] = true;
+        }
+
+        $integration = $this->getCurrentFormIntegration();
+        if ($integration instanceof FormIntegrationInterface) {
+            foreach ($this->getIntegrationFormTypes($integration) as $formType) {
+                if ($this->isFormEmailValidationEnabled($formType)) {
+                    $forms[$formType] = true;
+                }
             }
         }
 

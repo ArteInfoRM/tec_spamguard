@@ -67,8 +67,8 @@
         return actionUrl.pathname === window.location.pathname;
     }
 
-    function getForms(type) {
-        return Array.prototype.filter.call(document.querySelectorAll('form'), function (form) {
+    function getForms(type, config) {
+        var forms = Array.prototype.filter.call(document.querySelectorAll('form'), function (form) {
             if (!isVisible(form)) {
                 return false;
             }
@@ -82,6 +82,7 @@
             }
             if (type === 'login') {
                 return !!form.querySelector('[name="submitLogin"], [name="SubmitLogin"]')
+                    || !!form.querySelector('[name="submit_b2brequest_step"][value="login"]')
                     || form.id === 'login-form'
                     || isInside(form, 'section.login-form');
             }
@@ -99,9 +100,30 @@
                 return form.classList.contains('forgotten-password')
                     || (document.body.id === 'password' && formActionMatchesCurrentPage(form));
             }
+            if (type === 'newsletter') {
+                return !!form.querySelector('[name="submitNewsletter"]')
+                    && !!form.querySelector('input[type="email"][name="email"], input[name="email"]');
+            }
 
             return false;
         });
+        var selectors = config && config.formSelectors && config.formSelectors[type]
+            ? config.formSelectors[type]
+            : [];
+
+        selectors.forEach(function (selector) {
+            try {
+                Array.prototype.forEach.call(document.querySelectorAll(selector), function (form) {
+                    if (form.tagName === 'FORM' && isVisible(form) && forms.indexOf(form) === -1) {
+                        forms.push(form);
+                    }
+                });
+            } catch (error) {
+                // Invalid third-party selectors are ignored.
+            }
+        });
+
+        return forms;
     }
 
     function findSubmit(form) {
@@ -201,6 +223,31 @@
         return container;
     }
 
+    function logCaptchaDisplay(form, type, config) {
+        var body;
+        var location = config.captchaLogLocations && config.captchaLogLocations[type];
+
+        if (!window.fetch || !location || !config.captchaDisplayUrl || !config.captchaDisplayToken
+            || form.getAttribute('data-tec-spamguard-display-logged-' + type) === '1') {
+            return;
+        }
+
+        form.setAttribute('data-tec-spamguard-display-logged-' + type, '1');
+        body = 'location=' + encodeURIComponent(location)
+            + '&token=' + encodeURIComponent(config.captchaDisplayToken);
+        window.fetch(config.captchaDisplayUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: body
+        }).catch(function () {
+            // Captcha display logging must never interfere with the protected form.
+        });
+    }
+
     function appendHidden(form, name, value) {
         var input = form.querySelector('input[type="hidden"][name="' + name + '"]');
         if (!input) {
@@ -285,6 +332,7 @@
         container.className += ' g-recaptcha';
         container.setAttribute('data-sitekey', config.siteKey);
         container.setAttribute('data-rendered', '1');
+        logCaptchaDisplay(form, type, config);
         if (window.grecaptcha && typeof window.grecaptcha.render === 'function') {
             try {
                 window.grecaptcha.render(container, {
@@ -313,6 +361,7 @@
         container.className += ' cf-turnstile';
         container.setAttribute('data-sitekey', config.siteKey);
         container.setAttribute('data-rendered', '1');
+        logCaptchaDisplay(form, type, config);
         if (window.turnstile && typeof window.turnstile.render === 'function') {
             try {
                 window.turnstile.render(container, {
@@ -403,6 +452,7 @@
             container.appendChild(widget);
         }
         container.setAttribute('data-rendered', '1');
+        logCaptchaDisplay(form, type, config);
     }
 
     function renderRecaptchaV3Notice(form, type, config) {
@@ -419,6 +469,7 @@
 
         container.appendChild(notice);
         container.setAttribute('data-rendered', '1');
+        logCaptchaDisplay(form, type, config);
     }
 
     function renderFallbackCaptcha(form, type, fallbackConfig) {
@@ -471,7 +522,9 @@
         var lastSubmitter = null;
 
         document.body.classList.add('tec-spamguard-recaptcha-v3');
-        renderRecaptchaV3Notice(form, type, config);
+        if (type !== 'newsletter') {
+            renderRecaptchaV3Notice(form, type, config);
+        }
 
         if (form.getAttribute('data-tec-spamguard-v3') === '1') {
             return;
@@ -515,6 +568,7 @@
 
             event.preventDefault();
             event.stopImmediatePropagation();
+            logCaptchaDisplay(form, type, config);
             window.grecaptcha.ready(function () {
                 window.grecaptcha.execute(config.siteKey, {action: config.recaptchaAction || 'tec_spamguard'}).then(function (token) {
                     appendHidden(form, config.recaptchaV3ResponseField || config.responseField, token);
@@ -555,6 +609,117 @@
         } else if (config.provider === 'recaptcha_v3') {
             bindRecaptchaV3(form, type, config);
         }
+    }
+
+    function hasCaptchaResponse(form, config) {
+        return hasResponseValue(form, config.responseField)
+            || hasResponseValue(form, config.recaptchaV3ResponseField);
+    }
+
+    function openNewsletterChallenge(form, config) {
+        var container = form.querySelector('.tec-spamguard-newsletter-overlay');
+        var panel;
+        var captcha;
+        var title;
+        var message;
+        var feedback;
+        var actions;
+        var cancel;
+        var confirm;
+
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'tec-spamguard-newsletter-overlay';
+            container.setAttribute('role', 'dialog');
+            container.setAttribute('aria-modal', 'true');
+            container.setAttribute('aria-label', config.newsletterChallengeTitle || 'Confirm newsletter subscription');
+            panel = document.createElement('div');
+            panel.className = 'tec-spamguard-newsletter-panel';
+
+            title = document.createElement('h2');
+            title.className = 'tec-spamguard-newsletter-title';
+            title.textContent = config.newsletterChallengeTitle || 'Confirm newsletter subscription';
+            panel.insertBefore(title, panel.firstChild);
+
+            message = document.createElement('p');
+            message.className = 'tec-spamguard-newsletter-message';
+            message.textContent = config.newsletterChallengeMessage || 'Complete the antispam verification to subscribe.';
+            title.parentNode.insertBefore(message, title.nextSibling);
+
+            captcha = document.createElement('div');
+            captcha.className = 'tec-spamguard-widget tec-spamguard-newsletter-captcha';
+            captcha.setAttribute('data-form', 'newsletter');
+            panel.appendChild(captcha);
+
+            feedback = document.createElement('p');
+            feedback.className = 'tec-spamguard-newsletter-feedback';
+            feedback.setAttribute('aria-live', 'polite');
+            panel.appendChild(feedback);
+
+            actions = document.createElement('div');
+            actions.className = 'tec-spamguard-newsletter-actions';
+            cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'btn btn-secondary';
+            cancel.textContent = config.newsletterChallengeClose || 'Cancel';
+            cancel.addEventListener('click', function () {
+                container.classList.remove('tec-spamguard-newsletter-overlay-open');
+            });
+            confirm = document.createElement('button');
+            confirm.type = 'button';
+            confirm.className = 'btn btn-primary';
+            confirm.textContent = config.newsletterChallengeContinue || 'Confirm subscription';
+            confirm.addEventListener('click', function () {
+                if (!hasCaptchaResponse(form, config)) {
+                    feedback.textContent = config.newsletterChallengeIncomplete || 'Please complete the antispam verification.';
+                    return;
+                }
+                feedback.textContent = '';
+                form.setAttribute('data-tec-spamguard-newsletter-ready', '1');
+                container.classList.remove('tec-spamguard-newsletter-overlay-open');
+                submitWithToken(form, findSubmit(form));
+            });
+            actions.appendChild(cancel);
+            actions.appendChild(confirm);
+            panel.appendChild(actions);
+            container.appendChild(panel);
+            form.appendChild(container);
+        }
+
+        container.classList.add('tec-spamguard-newsletter-overlay-open');
+        renderCaptchaProvider(form, 'newsletter', config);
+    }
+
+    function renderCaptchaProvider(form, type, config) {
+        if (config.provider === 'recaptcha_v2') {
+            renderRecaptchaV2(form, type, config);
+        } else if (config.provider === 'turnstile') {
+            renderTurnstile(form, type, config);
+        } else if (config.provider === 'altcha' || config.provider === 'altcha_sentinel') {
+            renderAltcha(form, type, config);
+        }
+    }
+
+    function bindLazyNewsletterCaptcha(form, config) {
+        if (config.provider === 'recaptcha_v3') {
+            bindRecaptchaV3(form, 'newsletter', config);
+            return;
+        }
+        if (form.getAttribute('data-tec-spamguard-newsletter-bound') === '1') {
+            return;
+        }
+
+        form.setAttribute('data-tec-spamguard-newsletter-bound', '1');
+        form.addEventListener('submit', function (event) {
+            if (form.getAttribute('data-tec-spamguard-newsletter-ready') === '1') {
+                form.setAttribute('data-tec-spamguard-newsletter-ready', '0');
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            openNewsletterChallenge(form, config);
+        }, true);
     }
 
     function bindEmailAdvisory(type, form, config, domainMap) {
@@ -602,7 +767,7 @@
         if (config.emailAdvisoryForms && config.emailAdvisoryDomains && config.emailAdvisoryMessage) {
             var domainMap = buildDomainMap(config.emailAdvisoryDomains);
             Object.keys(config.emailAdvisoryForms).forEach(function (type) {
-                getForms(type).forEach(function (form) {
+                getForms(type, config).forEach(function (form) {
                     bindEmailAdvisory(type, form, config, domainMap);
                 });
             });
@@ -610,8 +775,12 @@
 
         if (config.provider && config.forms && config.siteKey) {
             Object.keys(config.forms).forEach(function (type) {
-                getForms(type).forEach(function (form) {
-                    initForm(type, form, config);
+                getForms(type, config).forEach(function (form) {
+                    if (type === 'newsletter') {
+                        bindLazyNewsletterCaptcha(form, config);
+                    } else {
+                        initForm(type, form, config);
+                    }
                 });
             });
         }
