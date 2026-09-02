@@ -7,6 +7,10 @@
 
 Tec Spam Guard by Tecnoacquisti.com® protects contact, registration, login, checkout identity, and password reset forms with configurable captcha providers, email validation, disposable-domain blocking, and contact message checks.
 
+## Video Overview
+
+[![Watch the Tec Spam Guard video](https://raw.githubusercontent.com/ArteInfoRM/tec_spamguard/main/documentation/thumbnail-a-stop-spam.jpg)](https://www.youtube.com/watch?v=hM7-i5K8SfM)
+
 ## Features
 
 - Captcha providers: Google reCAPTCHA v2, Google reCAPTCHA v3, Cloudflare Turnstile, ALTCHA, and ALTCHA Sentinel.
