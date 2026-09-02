@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.2.0
+ * @version   1.2.1
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -80,7 +80,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.2.0';
+        $this->version = '1.2.1';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -2959,8 +2959,7 @@ class Tec_spamguard extends Module
         }
 
         $controller = $this->context->controller;
-        if (isset($controller->module) && is_object($controller->module)
-            && (string) $controller->module->name === 'b2brequest'
+        if ((string) $controller->module->name === 'b2brequest'
             && (string) Tools::getValue('controller') === 'register') {
             return true;
         }
@@ -3124,13 +3123,9 @@ class Tec_spamguard extends Module
 
             return [];
         }
-        if (!is_array($selectors)) {
-            return [];
-        }
-
         $validatedSelectors = [];
         foreach ($this->getIntegrationFormTypes($integration) as $formType) {
-            if (!isset($selectors[$formType]) || !is_array($selectors[$formType])) {
+            if (!array_key_exists($formType, $selectors)) {
                 continue;
             }
             foreach ($selectors[$formType] as $selector) {

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ---
+## [1.2.1] - 2026-09-02
+### Fixed
+- Added the missing directory access protection file under `src/Integration`.
+- Removed redundant runtime checks reported by the PrestaShop compatibility validator for the B2B controller module and third-party selector map.
+
+---
 ## [1.2.0] - 2026-09-02
 ### Added
 - Added optional B2B Request account-form protection with server-side enforcement and dedicated validation log locations.
