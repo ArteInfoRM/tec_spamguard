@@ -2,7 +2,17 @@
 All notable changes to this project will be documented in this file.
 
 ---
-## [Unreleased]
+## [1.2.2] - 2026-11-11
+
+### Changed
+- Update the pinned ALTCHA widget to 3.5.0 for local and Sentinel providers, retaining server-side verification and replay protection.
+
+### Security
+- Validate the optional local ALTCHA challenge cache buster as an ASCII digit string of 1 to 32 characters. Reject malformed values and conflicting query/body values with a generic JSON HTTP 400 response before challenge generation, while preserving requests without the parameter.
+
+### Packaging
+- Exclude regression tests and runtime configuration from release archives and refresh the dependency inventory.
+- Include the standard Apache protection for templates and generated XML metadata.
 
 ---
 ## [1.2.1] - 2026-09-02

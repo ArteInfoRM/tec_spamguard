@@ -1,0 +1,111 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:f77d7cc9-49bb-4991-939a-e925c5201154",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-11T16:46:26.160181Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "tec_spamguard@1.2.2",
+      "name": "tec_spamguard",
+      "version": "1.2.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "inventory:scope",
+        "value": "Manual source inventory. No bundled third-party runtime library. ALTCHA widget and captcha services are external, opt-in integrations; PrestaShop is shop-provided. Disposable email domain data is module-maintained runtime data, not a software library."
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/altcha@3.5.0",
+      "name": "altcha",
+      "version": "3.5.0",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://cdn.jsdelivr.net/npm/altcha@3.5.0/dist/main/altcha.js"
+        }
+      ],
+      "properties": [
+        {
+          "name": "distribution",
+          "value": "Loaded from CDN only when selected; not bundled."
+        }
+      ]
+    },
+    {
+      "type": "framework",
+      "bom-ref": "runtime:prestashop",
+      "name": "PrestaShop",
+      "properties": [
+        {
+          "name": "distribution",
+          "value": "Shop-provided; declared module compatibility 1.7 and later."
+        }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "bom-ref": "service:recaptcha",
+      "name": "Google reCAPTCHA v2/v3",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://developers.google.com/recaptcha"
+        }
+      ]
+    },
+    {
+      "bom-ref": "service:turnstile",
+      "name": "Cloudflare Turnstile",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://developers.cloudflare.com/turnstile/"
+        }
+      ]
+    },
+    {
+      "bom-ref": "service:sentinel",
+      "name": "ALTCHA Sentinel",
+      "properties": [
+        {
+          "name": "distribution",
+          "value": "Merchant-configured server; not included or upgraded by this module."
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "tec_spamguard@1.2.2",
+      "dependsOn": [
+        "pkg:npm/altcha@3.5.0",
+        "runtime:prestashop",
+        "service:recaptcha",
+        "service:turnstile",
+        "service:sentinel"
+      ]
+    }
+  ]
+}

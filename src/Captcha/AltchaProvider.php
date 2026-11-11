@@ -15,7 +15,7 @@ if (!defined('_PS_VERSION_')) {
 
 class AltchaProvider implements CaptchaProviderInterface
 {
-    public const SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/altcha@3.1.0/dist/main/altcha.js';
+    public const SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/altcha@3.5.0/dist/main/altcha.js';
     public const ALGORITHM = 'SHA-256';
 
     private $hideFooter;
