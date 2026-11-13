@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.2.2
+ * @version   1.2.3
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -80,7 +80,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.2.2';
+        $this->version = '1.2.3';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -229,12 +229,22 @@ class Tec_spamguard extends Module
         $this->context->controller->registerJavascript(
             'module-tec-spamguard-front',
             'modules/' . $this->name . '/views/js/front.js',
-            ['position' => 'bottom', 'priority' => 150, 'version' => $this->getAssetVersion('views/js/front.js')]
+            [
+                'position' => 'bottom',
+                'priority' => 150,
+                // CCC reads local file paths and supplies its own combined-file version.
+                'version' => Configuration::get('PS_JS_THEME_CACHE') ? null : $this->getAssetVersion('views/js/front.js'),
+            ]
         );
         $this->context->controller->registerStylesheet(
             'module-tec-spamguard-front',
             'modules/' . $this->name . '/views/css/front.css',
-            ['media' => 'all', 'priority' => 150, 'version' => $this->getAssetVersion('views/css/front.css')]
+            [
+                'media' => 'all',
+                'priority' => 150,
+                // CCC reads local file paths and supplies its own combined-file version.
+                'version' => Configuration::get('PS_CSS_THEME_CACHE') ? null : $this->getAssetVersion('views/css/front.css'),
+            ]
         );
 
         Media::addJsDef([

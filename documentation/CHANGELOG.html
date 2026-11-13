@@ -116,6 +116,14 @@
 <h1>Changelog</h1>
 <p>All notable changes to this project will be documented in this file.</p>
 <hr>
+<h2>[1.2.3] - 2026-11-13</h2>
+<h3>Fixed</h3>
+<ul>
+<li>Preserve CAPTCHA initialization with JavaScript Smart Cache enabled on older PrestaShop asset managers: pass unversioned local paths to CCC to prevent invalid JavaScript bundles; retain standalone script versioning when CCC is disabled.</li>
+<li>Preserve CAPTCHA and newsletter dialog styles when PrestaShop CSS combination is enabled by leaving local CSS paths unversioned for CCC; retain asset versioning when CCC is disabled.</li>
+<li>Move the video thumbnail to <code>views/img</code> and update documentation links to follow the module image directory convention.</li>
+</ul>
+<hr>
 <h2>[1.2.2] - 2026-11-11</h2>
 <h3>Changed</h3>
 <ul>

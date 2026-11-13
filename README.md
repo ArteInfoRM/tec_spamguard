@@ -13,7 +13,7 @@ protection; it does not upgrade a separately deployed ALTCHA Sentinel server.
 
 ## Video Overview
 
-[![Watch the Tec Spam Guard video](https://raw.githubusercontent.com/ArteInfoRM/tec_spamguard/main/documentation/thumbnail-a-stop-spam.jpg)](https://www.youtube.com/watch?v=hM7-i5K8SfM)
+[![Watch the Tec Spam Guard video](https://raw.githubusercontent.com/ArteInfoRM/tec_spamguard/main/views/img/thumbnail-a-stop-spam.jpg)](https://www.youtube.com/watch?v=hM7-i5K8SfM)
 
 ## Features
 

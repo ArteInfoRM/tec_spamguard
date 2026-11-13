@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.2.3] - 2026-11-13
+
+### Fixed
+- Preserve CAPTCHA initialization with JavaScript Smart Cache enabled on older PrestaShop asset managers: pass unversioned local paths to CCC to prevent invalid JavaScript bundles; retain standalone script versioning when CCC is disabled.
+- Preserve CAPTCHA and newsletter dialog styles when PrestaShop CSS combination is enabled by leaving local CSS paths unversioned for CCC; retain asset versioning when CCC is disabled.
+- Move the video thumbnail to `views/img` and update documentation links to follow the module image directory convention.
+
+---
 ## [1.2.2] - 2026-11-11
 
 ### Changed
