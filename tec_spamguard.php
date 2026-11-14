@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.2.3
+ * @version   1.2.4
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -80,7 +80,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.2.3';
+        $this->version = '1.2.4';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;

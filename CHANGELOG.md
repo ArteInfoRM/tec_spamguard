@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.2.4] - 2026-11-14
+
+### Changed
+- Refresh the bundled disposable email domain list from `domains_mx.txt` on 2026-11-14 using the module's existing domain parser: 61,572 unique domains, with 40,847 added and 1,365 removed compared with the previous bundled list.
+
+---
 ## [1.2.3] - 2026-11-13
 
 ### Fixed

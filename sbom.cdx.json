@@ -1,15 +1,15 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:963bb509-a5cc-4a6d-83a6-3cd085d63e29",
+  "serialNumber": "urn:uuid:c9664e73-d11a-41ed-9825-c117165d45de",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-11-13T16:30:51.563351Z",
+    "timestamp": "2026-11-14T09:20:02.957886Z",
     "component": {
       "type": "application",
-      "bom-ref": "tec_spamguard@1.2.3",
+      "bom-ref": "tec_spamguard@1.2.4",
       "name": "tec_spamguard",
-      "version": "1.2.3",
+      "version": "1.2.4",
       "licenses": [
         {
           "license": {
@@ -98,7 +98,7 @@
   ],
   "dependencies": [
     {
-      "ref": "tec_spamguard@1.2.3",
+      "ref": "tec_spamguard@1.2.4",
       "dependsOn": [
         "pkg:npm/altcha@3.5.0",
         "runtime:prestashop",
