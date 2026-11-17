@@ -1,7 +1,10 @@
 <?php
 /**
  * 2009-2026 Tecnoacquisti.com
- * @license MIT License
+ *
+ * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
+ * @copyright 2009-2026 Arte e Informatica
+ * @license   MIT License
  */
 if (!defined('_PS_VERSION_')) {
     exit;

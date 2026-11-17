@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.3.1] - 2026-11-17
+
+### Changed
+- Translate advanced protection, AbuseIPDB, form controls and validation messages into all nine bundled languages.
+
+### Fixed
+- Complete the 1.3.0 upgrade script license header and align the module entry point with validator coding standards.
+- Use the supported Doctrine DBAL scalar API and explicit PrestaShop cookie accessors for advanced protection compatibility checks.
+
+---
 ## [1.3.0] - 2026-11-17
 
 ### Added

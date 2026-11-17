@@ -40,11 +40,7 @@ final class ProtectionConnection
     /** Read a scalar on DBAL 2 and 3. */
     public function value(string $sql)
     {
-        if (method_exists($this->connection, 'fetchOne')) {
-            return $this->connection->fetchOne($sql);
-        }
-
-        return $this->connection->fetchColumn($sql);
+        return $this->connection->fetchOne($sql);
     }
 
     /** Quote with the actual database driver. */

@@ -121,13 +121,13 @@ trait ModuleProtectionTrait
     /** Create an opaque identity in the encrypted PrestaShop cookie before output. */
     private function guardSession($create = false)
     {
-        $value = (string) $this->context->cookie->tec_spamguard_session;
+        $value = (string) $this->context->cookie->__get('tec_spamguard_session');
         if (!preg_match('/^[a-f0-9]{64}$/D', $value)) {
             if (!$create) {
                 return '';
             }
             $value = bin2hex(random_bytes(32));
-            $this->context->cookie->tec_spamguard_session = $value;
+            $this->context->cookie->__set('tec_spamguard_session', $value);
             $this->context->cookie->write();
         }
 

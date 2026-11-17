@@ -7,7 +7,8 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.3.0
+ *
+ * @version   1.3.1
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -39,8 +40,8 @@ require_once __DIR__ . '/src/Protection/ConfigurationTrait.php';
 
 class Tec_spamguard extends Module
 {
-    use \TecSpamGuard\Protection\ModuleProtectionTrait;
-    use \TecSpamGuard\Protection\ConfigurationTrait;
+    use TecSpamGuard\Protection\ModuleProtectionTrait;
+    use TecSpamGuard\Protection\ConfigurationTrait;
 
     public const CONFIG_PREFIX = 'TEC_SPAMGUARD_';
     public const DISPOSABLE_DOMAINS_SOURCE_URL = 'https://disposable.github.io/disposable-email-domains/domains_mx.txt';
@@ -86,7 +87,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.3.0';
+        $this->version = '1.3.1';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -1720,6 +1721,7 @@ class Tec_spamguard extends Module
                 return $this->renderConfigurationForm('submitTecSpamGuardAdvanced', $this->protectionForm(false));
             case 'abuseipdb':
                 $this->context->smarty->assign('sg_waf_abuse_active', $this->isAbuseManagedByWaf());
+
                 return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/abuse_notice.tpl')
                     . $this->renderConfigurationForm('submitTecSpamGuardAbuse', $this->protectionForm(true));
             case 'validation-logs':
@@ -1820,7 +1822,7 @@ class Tec_spamguard extends Module
                 $key = self::CONFIG_PREFIX . $suffix;
                 $formDefaults[$key] = $defaults[$key];
             }
-            $names = \TecSpamGuard\Protection\FormProof::names();
+            $names = TecSpamGuard\Protection\FormProof::names();
             $formDefaults[self::CONFIG_PREFIX . 'GUARD_FIELD'] = $names[random_int(0, count($names) - 1)];
             $helper->tpl_vars['sg_advanced_defaults_json'] = json_encode($formDefaults);
         }
@@ -2281,6 +2283,7 @@ class Tec_spamguard extends Module
         if (isset($this->protectionResults[$type . ':result'])) {
             return $this->protectionResults[$type . ':result'];
         }
+
         try {
             $reason = $this->guardBefore($type);
             $error = $reason === '' ? $this->validateSubmittedFormCore($form) : $this->l('The form could not be verified. Please reload the page and try again later.');
@@ -3108,6 +3111,7 @@ class Tec_spamguard extends Module
         }
 
         $this->formIntegrations = [];
+
         try {
             $results = Hook::exec(self::FORM_INTEGRATION_HOOK, ['spam_guard' => $this], null, true);
         } catch (Throwable $throwable) {
