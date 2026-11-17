@@ -309,3 +309,120 @@ final class ExampleRegistrationIntegration implements FormIntegrationInterface
 The returned form descriptor must implement `TecSpamGuard\Form\FormInterface` and provide the standard type (`contact`, `register`, `login`, or `password`), submission detection, and the submitted email or message when applicable. Tec Spam Guard applies its existing per-type captcha and validation settings, performs server-side validation in `actionDispatcher`, injects widgets using the declared selectors, redirects failures to the adapter URL, and records log locations as `ext_<integration_id>_<form_type>`.
 
 Integration IDs must contain only lowercase ASCII letters, numbers, and underscores, with a maximum length of 32 characters. Selectors are limited to 255 characters. Only one adapter should claim a page; duplicate IDs are ignored. Page and submission recognition must rely on server-side controller, module, route, and submit-action checks. Hidden inputs and JavaScript selectors alone must never be treated as proof that a request belongs to an integration.
+
+
+## Advanced protection (1.3.0)
+
+The **Advanced protection** and **AbuseIPDB** configuration tabs appear before
+**Validation logs**. These controls are independent of the CAPTCHA provider and
+of the exemption for logged-in customers.
+
+### Invisible form protection
+
+New installations enable the honeypot on native registration (including native
+checkout identity), contact and password-link request forms. A name is selected
+randomly from fifty allowed names during installation. Merchants can select a
+name or use **Choose a random field name** in the Advanced protection heading,
+then save. The adjacent **Reset to defaults** button restores only this form to
+installation defaults, including a randomly selected honeypot name; press **Save**
+to persist the reset. AbuseIPDB settings are unaffected. Existing installations
+upgrading to 1.3.0 start with the new honeypot disabled so custom themes can be
+checked before activation. Existing settings are preserved.
+
+Smarty fields are inserted server-side into recognized native forms through
+`actionOutputHTMLBefore`; JavaScript is not required. The decoy must be present,
+scalar and empty. A signed, session/shop/form-bound proof expires after 30 minutes
+and is consumed once atomically. Its signed field name allows already-open forms
+to survive a name change until expiry. Invalid submissions need a fresh form;
+normal server-rendered validation responses receive fresh proofs. Multiple tabs
+receive independent proofs. Password-change forms reached through an emailed
+reset link are excluded.
+
+The fields are hidden from keyboard navigation and assistive technology and use
+`autocomplete="off"`. The honeypot complements other controls: an adapted browser
+bot can still leave it empty and obtain a valid proof. It is not proof of human
+identity. Full-page caches must respect private/no-store responses; custom AJAX
+fragments and third-party registration modules require their own integration and
+must be tested before enabling this option. A missing/array field or invalid
+proof is logged separately from a filled trap and does not trigger the strict
+honeypot failure counter.
+
+### Optional attempt limits
+
+Limits are enabled by default when first configured and when using Reset to defaults.
+Existing saved choices are preserved; limits can be disabled at any time.
+Each of registration, contact and password-link requests has independent controls for CAPTCHA errors, filled traps, counting windows,
+suspension durations, admitted submissions, IP ceilings and identity cooldowns.
+Default failure thresholds are 10 CAPTCHA errors or 2 filled traps in 15 minutes,
+with a 15-minute suspension. Every invalid request is rejected even below the
+threshold. Error counters identify the source session (IP fallback); an additional
+IP ceiling is five times the session error threshold. An attacker-supplied email
+is never used to suspend a customer for CAPTCHA/honeypot errors. Classified
+provider transport/configuration failures do not increment CAPTCHA counters.
+
+Default admitted-submission ceilings:
+
+| Form | Identity ceiling | IP ceiling | Minimum identity interval |
+| --- | --- | --- | --- |
+| Registration | 3 per session/hour | 10/hour | None |
+| Contact | 3 per email/10 minutes | 30/10 minutes | None |
+| Password link | 5 per email/hour | 30/hour | 120 seconds |
+
+These counters reserve submissions after module validation but before the core
+processes them. They count admitted attempts, not confirmed account creations or
+email deliveries; later core validation failures can consume a slot. This bounds
+concurrent requests conservatively. Expiring state and identities are stored as
+keyed hashes, scoped to the shop. Shared IPs, session resets and rotating source
+IPs affect effectiveness; tune ceilings using real traffic. Core password timing
+rules still apply separately. No account is deactivated by these limits.
+
+### Optional AbuseIPDB checks
+
+AbuseIPDB is disabled until configured with a merchant API key. The stored key is
+masked in the text field; an empty or masked submission preserves it. Choose the
+forms to check and **monitor** or **block**, with a configurable score threshold
+(default 90) and daily local API-call budget (default 900). Scores describe IP
+reputation, not proof that a particular customer is malicious.
+
+Checks run after local validation and applicable CAPTCHA checks. Results are
+cached per IP/key/shop for one hour. Concurrent lookups for the same key/IP are
+serialized; a bounded timeout, quota backoff and local budget prevent repeated
+API calls. On API/network errors, malformed responses or exhausted budgets,
+other protections continue and reputation alone does not block the customer.
+Enable successful validation logging to see `abuse_monitor`, `abuse_unavailable`
+and `abuse_waf` outcomes. The local budget cannot account for calls made by other
+shops, servers or modules sharing the API account.
+
+If **tec_blockaibots** is enabled for the current shop and its
+`TEC_BLOCKAIBOTS_ABUSEIPDB` option is active, Tec Spam Guard skips its own checks
+and displays a WAF notice in the AbuseIPDB tab. It does not borrow the WAF key or
+assert that every form submission was checked by the WAF. Its saved settings are
+preserved and take effect again when WAF integration is no longer active.
+
+Only the public client IP is sent to the fixed AbuseIPDB check endpoint. No
+customer email, form body, CAPTCHA token or automatic abuse report is sent.
+The web server must establish the real client address in `REMOTE_ADDR` using
+trusted proxy configuration. Arbitrary client forwarding headers are not trusted.
+Review the site's privacy information when enabling this external service.
+
+### Compatibility and validation
+
+The protection code targets PrestaShop 1.7.7 through 9.2. Legacy 1.7 uses a
+separate database adapter; 8+ uses Doctrine DBAL, including native front controllers
+without a booted Symfony container. No new feature currently needs a 1.7 bypass.
+Native runtime checks were executed on 1.7.8.11, 8.2.5 and 9.2.1; an exact 1.7.7
+runtime was not available. Theme/custom checkout integrations require separate
+validation. Changes in these tabs require a single-shop configuration context.
+
+CLI development checks (inside a disposable/local PrestaShop installation):
+
+```bash
+php modules/tec_spamguard/tests/advanced_protection.php
+php modules/tec_spamguard/tests/abuse_client.php
+php modules/tec_spamguard/tests/waf_detection.php
+php modules/tec_spamguard/tests/protection_configuration.php
+```
+
+The reputation test mocks API transport and consumes no real quota. The integration
+test creates expiring test records in the module store. Tests do not establish
+production API credentials, mailbox delivery, ZIP installation or validator approval.

@@ -7,7 +7,7 @@
  * @author    Arte e Informatica <helpdesk@tecnoacquisti.com>
  * @copyright 2009-2026 Arte e Informatica
  * @license   MIT License
- * @version   1.2.4
+ * @version   1.3.0
  */
 
 use GeoIp2\Database\Reader as GeoIp2Reader;
@@ -34,8 +34,14 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+require_once __DIR__ . '/src/Protection/ModuleProtectionTrait.php';
+require_once __DIR__ . '/src/Protection/ConfigurationTrait.php';
+
 class Tec_spamguard extends Module
 {
+    use \TecSpamGuard\Protection\ModuleProtectionTrait;
+    use \TecSpamGuard\Protection\ConfigurationTrait;
+
     public const CONFIG_PREFIX = 'TEC_SPAMGUARD_';
     public const DISPOSABLE_DOMAINS_SOURCE_URL = 'https://disposable.github.io/disposable-email-domains/domains_mx.txt';
     public const DISPOSABLE_DOMAINS_BACKUP_LIMIT = 5;
@@ -80,7 +86,7 @@ class Tec_spamguard extends Module
     {
         $this->name = 'tec_spamguard';
         $this->tab = 'front_office_features';
-        $this->version = '1.2.4';
+        $this->version = '1.3.0';
         $this->author = 'Tecnoacquisti.com';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -110,6 +116,7 @@ class Tec_spamguard extends Module
                 'actionSubmitAccountBefore',
             ])
             && $this->installDefaults()
+            && $this->installAdvancedProtection()
             && $this->installValidationLogSchema()
             && $this->installAltchaReplaySchema()
             && $this->installAdminTab();
@@ -126,7 +133,8 @@ class Tec_spamguard extends Module
             Configuration::deleteByName($key);
         }
 
-        return $this->uninstallAdminTab()
+        return $this->guardStore()->uninstall()
+            && $this->uninstallAdminTab()
             && $this->uninstallValidationLogSchema()
             && $this->uninstallAltchaReplaySchema()
             && parent::uninstall();
@@ -145,8 +153,15 @@ class Tec_spamguard extends Module
 
         $this->ensureValidationLogInfrastructure();
         $this->context->controller->addCSS($this->_path . 'views/css/back.css');
+        $this->context->controller->addJS($this->_path . 'views/js/advanced-admin.js');
 
         $output = '';
+        if (Tools::isSubmit('submitTecSpamGuardAdvanced')) {
+            $output .= $this->saveProtectionConfiguration(false);
+        }
+        if (Tools::isSubmit('submitTecSpamGuardAbuse')) {
+            $output .= $this->saveProtectionConfiguration(true);
+        }
         if (Tools::isSubmit('submitTecSpamGuardDisposableDomainsUpdate')) {
             $output .= $this->postProcessDisposableDomainsUpdate();
         }
@@ -182,6 +197,7 @@ class Tec_spamguard extends Module
     public function hookDisplayHeader($params)
     {
         unset($params);
+        $this->prepareAdvancedProtectionSession();
 
         if (!$this->isCurrentPageProtectable()) {
             return '';
@@ -1074,7 +1090,7 @@ class Tec_spamguard extends Module
      */
     private function getDefaultConfiguration()
     {
-        return [
+        return $this->protectionDefaults() + [
             self::CONFIG_PREFIX . 'CAPTCHA_PROVIDER' => 'none',
             self::CONFIG_PREFIX . 'CONTACT_CAPTCHA' => 1,
             self::CONFIG_PREFIX . 'REGISTER_CAPTCHA' => 1,
@@ -1646,6 +1662,8 @@ class Tec_spamguard extends Module
                 'icon' => 'icon-comment',
                 'active' => $activeTabId === 'message-validation',
             ],
+            ['id' => 'advanced', 'title' => $this->l('Advanced protection'), 'icon' => 'icon-shield', 'active' => $activeTabId === 'advanced'],
+            ['id' => 'abuseipdb', 'title' => $this->l('AbuseIPDB'), 'icon' => 'icon-globe', 'active' => $activeTabId === 'abuseipdb'],
             [
                 'id' => 'validation-logs',
                 'title' => $this->l('Validation logs'),
@@ -1698,6 +1716,12 @@ class Tec_spamguard extends Module
                     'submitTecSpamGuardMessageValidation',
                     $this->getMessageValidationFormDefinition()
                 );
+            case 'advanced':
+                return $this->renderConfigurationForm('submitTecSpamGuardAdvanced', $this->protectionForm(false));
+            case 'abuseipdb':
+                $this->context->smarty->assign('sg_waf_abuse_active', $this->isAbuseManagedByWaf());
+                return $this->context->smarty->fetch($this->local_path . 'views/templates/admin/abuse_notice.tpl')
+                    . $this->renderConfigurationForm('submitTecSpamGuardAbuse', $this->protectionForm(true));
             case 'validation-logs':
                 return $this->renderConfigurationForm(
                     'submitTecSpamGuardValidationLogs',
@@ -1738,6 +1762,12 @@ class Tec_spamguard extends Module
      */
     private function getActiveConfigurationTabId()
     {
+        if (Tools::isSubmit('submitTecSpamGuardAdvanced')) {
+            return 'advanced';
+        }
+        if (Tools::isSubmit('submitTecSpamGuardAbuse')) {
+            return 'abuseipdb';
+        }
         if (Tools::isSubmit('submitTecSpamGuardCaptchaForms')) {
             return 'captcha-forms';
         }
@@ -1782,6 +1812,18 @@ class Tec_spamguard extends Module
             'languages' => $this->context->controller->getLanguages(),
             'id_language' => $this->context->language->id,
         ];
+
+        if ($submitAction === 'submitTecSpamGuardAdvanced') {
+            $defaults = $this->protectionDefaults();
+            $formDefaults = [];
+            foreach (array_keys($this->guardRules(false)) as $suffix) {
+                $key = self::CONFIG_PREFIX . $suffix;
+                $formDefaults[$key] = $defaults[$key];
+            }
+            $names = \TecSpamGuard\Protection\FormProof::names();
+            $formDefaults[self::CONFIG_PREFIX . 'GUARD_FIELD'] = $names[random_int(0, count($names) - 1)];
+            $helper->tpl_vars['sg_advanced_defaults_json'] = json_encode($formDefaults);
+        }
 
         return $helper->generateForm([$form]);
     }
@@ -2135,7 +2177,7 @@ class Tec_spamguard extends Module
             $value = Configuration::get($key);
             $values[$key] = $value === false ? $defaultValue : $value;
         }
-        foreach (['RECAPTCHA_V2_SECRET', 'RECAPTCHA_V3_SECRET', 'TURNSTILE_SECRET', 'ALTCHA_SECRET', 'ALTCHA_SENTINEL_API_KEY'] as $field) {
+        foreach (['RECAPTCHA_V2_SECRET', 'RECAPTCHA_V3_SECRET', 'TURNSTILE_SECRET', 'ALTCHA_SECRET', 'ALTCHA_SENTINEL_API_KEY', 'ABUSE_API_KEY'] as $field) {
             $key = self::CONFIG_PREFIX . $field;
             $values[$key] = $this->maskSecret((string) Configuration::get($key));
         }
@@ -2235,10 +2277,34 @@ class Tec_spamguard extends Module
      */
     private function validateSubmittedForm(FormInterface $form)
     {
+        $type = $form->getType();
+        if (isset($this->protectionResults[$type . ':result'])) {
+            return $this->protectionResults[$type . ':result'];
+        }
+        try {
+            $reason = $this->guardBefore($type);
+            $error = $reason === '' ? $this->validateSubmittedFormCore($form) : $this->l('The form could not be verified. Please reload the page and try again later.');
+            if ($error === '' && $this->guardAfter($type, $form->getEmail()) !== '') {
+                $error = $this->l('This request cannot be accepted now. Please try again later.');
+            }
+        } catch (Throwable $exception) {
+            $error = $this->l('The form protection is temporarily unavailable. Please try again later.');
+        }
+        $this->protectionResults[$type . ':result'] = $error;
+
+        return $error;
+    }
+
+    /** Validate existing CAPTCHA, email and message rules. */
+    private function validateSubmittedFormCore(FormInterface $form)
+    {
         $logLocation = $this->getContextualValidationLocation($form->getType());
         if ($this->isFormCaptchaEnabled($form->getType()) && $this->shouldProtectFormInCurrentContext($form->getType())) {
             $error = $this->validateCaptcha($form->getType());
             if ($error !== '') {
+                if (empty($this->captchaTechnicalFailures[$form->getType()])) {
+                    $this->guardFailure($form->getType(), 'captcha');
+                }
                 $this->logFailedValidation($logLocation, 'captcha');
 
                 return $error;
@@ -2372,7 +2438,7 @@ class Tec_spamguard extends Module
 
         $formType = $this->normalizeValidationLogLocation($formType);
         $validationType = (string) $validationType;
-        if (!in_array($validationType, ['captcha', 'email', 'message'], true)) {
+        if (!in_array($validationType, ['captcha', 'email', 'message', 'honeypot', 'form_invalid', 'form_replay', 'rate_limit', 'abuse_waf', 'abuse_unavailable', 'abuse_block', 'abuse_monitor'], true)) {
             return;
         }
 
@@ -2381,6 +2447,9 @@ class Tec_spamguard extends Module
         $captchaLocation = $passed === false && $validationType === 'captcha' ? $formType : '';
         $emailLocation = $passed === false && $validationType === 'email' ? $formType : '';
         $messageLocation = $passed === false && $validationType === 'message' ? $formType : '';
+        if ($passed === false && !in_array($validationType, ['captcha', 'email', 'message'], true)) {
+            $messageLocation = $validationType . ':' . $formType;
+        }
         $issuedLocation = $isIssued ? $formType : '';
         $passedLocation = $passed === true ? $validationType . ':' . $formType : '';
 
@@ -2497,7 +2566,7 @@ class Tec_spamguard extends Module
      */
     private function getRequestIpAddress()
     {
-        $ip = trim((string) Tools::getRemoteAddr());
+        $ip = $this->guardIp();
         if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
             return '';
         }
@@ -2618,10 +2687,14 @@ class Tec_spamguard extends Module
         }
 
         if ($provider->getId() === 'recaptcha_v3') {
-            $error = $this->validateRecaptchaV3WithFallback($provider);
+            $error = $this->validateRecaptchaV3WithFallback($provider, $formType);
             $this->captchaValidationResults[$formType] = $error;
 
             return $error;
+        }
+
+        if ($this->getCaptchaSecret() === '') {
+            $this->captchaTechnicalFailures[$formType] = true;
         }
 
         $result = $provider->verify(
@@ -2629,6 +2702,7 @@ class Tec_spamguard extends Module
             $this->getCaptchaSecret(),
             Tools::getRemoteAddr()
         );
+        $this->recordCaptchaTechnicalFailure($result, $formType);
         if (!empty($result['success']) && $provider->getId() === 'altcha'
             && !$this->consumeLocalAltchaChallenge($result)) {
             $result['success'] = false;
@@ -2646,13 +2720,14 @@ class Tec_spamguard extends Module
      *
      * @return string Error message or empty string
      */
-    private function validateRecaptchaV3WithFallback(CaptchaProviderInterface $provider)
+    private function validateRecaptchaV3WithFallback(CaptchaProviderInterface $provider, $formType)
     {
         $result = $provider->verify(
             $this->getSubmittedRecaptchaV3Token(),
             $this->getCaptchaSecretById('recaptcha_v3'),
             Tools::getRemoteAddr()
         );
+        $this->recordCaptchaTechnicalFailure($result, $formType);
         if (!empty($result['success'])) {
             return '';
         }
@@ -2664,12 +2739,24 @@ class Tec_spamguard extends Module
                 $this->getCaptchaSecretById($fallbackProvider->getId()),
                 Tools::getRemoteAddr()
             );
+            $this->recordCaptchaTechnicalFailure($fallbackResult, $formType);
             if (!empty($fallbackResult['success'])) {
                 return '';
             }
         }
 
         return $this->getCaptchaValidationErrorMessage($provider);
+    }
+
+    /** Distinguish provider outages/configuration errors from visitor mistakes. */
+    private function recordCaptchaTechnicalFailure(array $result, $formType)
+    {
+        foreach (isset($result['errors']) ? $result['errors'] : [] as $providerError) {
+            if (strpos((string) $providerError, 'transport') !== false
+                || in_array($providerError, ['malformed-response', 'invalid-input-secret', 'missing-input-secret'], true)) {
+                $this->captchaTechnicalFailures[$formType] = true;
+            }
+        }
     }
 
     /**
@@ -2870,6 +2957,10 @@ class Tec_spamguard extends Module
             case 'contact':
                 return $this->context->link->getPageLink('contact', $ssl);
             case 'register':
+                if (version_compare(_PS_VERSION_, '8.0.0', '<')) {
+                    return $this->context->link->getPageLink('authentication', $ssl, null, 'create_account=1');
+                }
+
                 return $this->context->link->getPageLink('registration', $ssl);
             case 'login':
                 return $this->context->link->getPageLink('authentication', $ssl);

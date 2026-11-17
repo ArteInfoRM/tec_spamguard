@@ -87,7 +87,7 @@ class AdminTecSpamGuardValidationLogsController extends ModuleAdminController
                 'orderby' => false,
             ],
             'message_location' => [
-                'title' => $module->l('Message validation failed at', 'AdminTecSpamGuardValidationLogs'),
+                'title' => $module->l('Message or advanced protection failure', 'AdminTecSpamGuardValidationLogs'),
                 'filter_key' => 'a!message_location',
                 'orderby' => false,
             ],

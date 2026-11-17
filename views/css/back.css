@@ -116,3 +116,26 @@ body.tec-spamguard-ps9-config-page .tec-spamguard-tab-content {
         margin: 0 0 16px;
     }
 }
+
+.tec-spamguard-advanced-heading.panel-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: auto !important;
+    min-height: 40px;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+}
+
+.tec-spamguard-advanced-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.tec-spamguard-advanced-description {
+    margin-bottom: 1em !important;
+}

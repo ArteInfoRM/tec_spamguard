@@ -2,6 +2,23 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.3.0] - 2026-11-17
+
+### Added
+- Add Advanced protection and AbuseIPDB tabs before Validation logs.
+- Place random field-name selection and form-only reset controls in the Advanced protection heading; apply changes only when saved.
+- Add optional server-rendered honeypots with fifty selectable names, randomized on installation, and signed session/shop/form-bound single-use proofs for native registration, contact and password-link request forms.
+- Enable honeypots on fresh installations; preserve existing choices and leave the new protection disabled during upgrade for theme review.
+- Add optional per-form failure thresholds, temporary suspensions and admitted-submission ceilings with atomic, expiring, shop-scoped storage. Enable attempt limits by default and on form reset, preserving existing saved choices.
+- Add optional read-only AbuseIPDB reputation checks with monitor/block modes, masked credentials, one-hour caching, bounded timeouts, daily budgets and quota backoff.
+- Automatically skip Spam Guard reputation calls when the enabled Tec Block AI Bots WAF has AbuseIPDB enabled for the current shop; display a configuration notice.
+- Add legacy/Doctrine storage adapters and tests for proof tampering, replay, counters, shop isolation, WAF detection and mocked reputation responses.
+
+### Fixed
+- Return rejected PrestaShop 1.7 registration submissions to the authentication account-creation route.
+- Use the server-established client IP for validation log identity rather than trusting arbitrary forwarded headers.
+
+---
 ## [1.2.4] - 2026-11-14
 
 ### Changed
